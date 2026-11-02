@@ -1,94 +1,101 @@
-# Codex Battery 1.1.2
+# Agent Battery (Codex Battery) 2.1.0
 
-一个独立的 macOS 菜单栏额度查看工具，为当前本机 ChatGPT 登录的 Codex 账户显示五小时剩余额度。非 OpenAI 官方产品。
+一个纯原生（AppKit + SwiftUI）、零第三方依赖的 macOS 菜单栏 AI 额度监控工具，同时支持本机登录的 **OpenAI Codex** 与 **Google Antigravity (Gemini CLI / IDE)** 双服务实时配额遥测。非 OpenAI 或 Google 官方产品。
 
 ## 界面预览
 
-截图中的额度和重置时间随账户状态变化。
+### 原生克制美学 (Apple HIG Mode · 默认)
 
-![额度主面板](docs/images/main-panel.png)
+遵循 Apple Human Interface Guidelines 的 **Deference（界面谦逊退后）**、**Clarity（黑白灰字体层级）** 与 **90/10 语义色彩法则**——卡片采用无杂色纯净半透明毛玻璃，色彩仅服务于能量刻度本身：
+
+![主面板预览 (Apple HIG)](docs/images/main-panel.png)
+
+### 内置 4 套面板布局 + 极客双色模式 (Cyber Dual-Tone)
+
+内置 **Bento 双核控制中心**、**Apple Watch Ultra 双环精密仪表**、**果味横向流体胶囊**、**Raycast 极客全景 HUD** 四套 UI 布局，并支持切换「原生克制 (Apple HIG)」与「极客双色 (Cyber Dual-Tone)」色彩体系：
+
+![四套内置极客苹果风主题总览](docs/images/themes-overview.png)
 
 ![状态栏图标外观设置](docs/images/appearance.png)
 
-## 使用
+---
 
-将 `Codex Battery.app` 放入“应用程序”后启动。启动后点击右上角额度图标打开面板；再次点击或点击外部关闭。菜单栏百分比代表 Codex 五小时额度，和电脑电量无关。
+## 核心特性
 
-- 面板：五小时剩余额度、服务端重置时间、每周剩余额度和更新时间。
-- 右下角刷新按钮：立即查询；正常情况下每 3 分钟自动查询，唤醒后也查询，五小时窗口重置后安排一次查询。
-- 右下角省略号：进入偏好设置；在“状态栏外观”中选择能量环（方案 1）、五段能量条（方案 3）或小幽灵（方案 8），点击立即生效，重启后保留。默认能量环。选择项预览使用与状态栏相同的矢量绘制。
-- 能量环进度、能量条分段填充和幽灵身体填充都代表五小时剩余额度。幽灵在剩余不超过 25% 时显示困倦表情；未知数据有独立的弱化状态，不会显示成满额度。
-- 额度变化有短暂缓动；刷新开始时，能量环跑一段光点、能量条跳一段高光、幽灵轻轻浮动。动效约 0.65 秒，平时不运行动画计时器，尊重系统“减少动态效果”。
-- 同一设置页也可切换菜单栏百分比、登录时启动、选择 Codex 可执行程序，或退出。
-- 默认不启用登录时启动。可在偏好设置中自行开启；系统需要额外允许时会提示。
-- 右键菜单栏图标：刷新或退出。
-- 如果没有额度：先在 Codex 中使用 ChatGPT 账户登录，然后刷新。API Key 计费不等于 ChatGPT 套餐额度。
+- **双服务同屏监控**：
+  - **OpenAI Codex**：自动读取五小时滚动窗口（`300m`）、每周总额度窗口（`10080m`）、套餐类型及服务端重置倒计时。
+  - **Google Antigravity**：按模型分组（`Gemini 模型`、`Claude / GPT 模型` 等）展示五小时与每周独立配额，状态栏跟随当前关注组。
+- **4 套 UI 布局 × 2 套色彩哲学（即时切换）**：
+  - 点击面板右上角 **「⊞ 布局按钮」** 或在 **「⚙️ 偏好设置」** 中一键切换 `Bento 双核` / `Ultra 双环` / `流体胶囊` / `全景 HUD`，以及 `原生克制 (Apple HIG)` / `极客双色` 模式，偏好自动持久化。
+- **3 种状态栏显示范围 × 3 款自绘矢量图标**：
+  - 支持 **仅 Codex / 仅 Antigravity / 两者同显**。
+  - 内置 **能量环 (`ring`)**、**五段能量条 (`bars`)**、**小幽灵 (`ghost`)** 三种纯 `NSBezierPath` 矢量图标。双服务模式下共用单图标（外/内双环、上/下能量条、左/右双幽灵），刷新时提供 0.65 秒轻量微动效。
+- **智能轮询与容错缓存**：
+  - 正常每 3 分钟自动同步，系统睡眠唤醒自动刷新，五小时窗口到达重置时刻自动触发定点刷新。
+  - 短暂网络/限流故障按 `10s -> 30s -> 60s -> 180s` 阶梯退避重试，并在 10 分钟有效期内以 `~` 前缀保留最近一次可信额度。
 
-## 原生界面
+---
 
-AppKit 菜单栏和系统 Popover，SwiftUI 布局；系统字体、SF Symbols、自绘矢量电池、弹簧填充、数字过渡、单次高光掠过和刷新动画。macOS 26 及以上使用系统 Liquid Glass 卡片，面板使用系统毛玻璃；较旧系统采用材质降级。跟随系统深浅色，尊重“减少动态效果”和“降低透明度”。
+## 数据安全与隐私边界
 
-## 数据与边界
+1. **OpenAI Codex（[`Sources/Quota.swift`](Sources/Quota.swift)）**：
+   - 通过本机 `codex app-server --stdio` 完成 `initialize / initialized` 握手并调用 `account/rateLimits/read`。
+   - 仅读取额度元数据，不创建会话、不发送模型任务、不读取或复制任何本地认证令牌文件。
+2. **Google Antigravity（[`Sources/AGCLI.swift`](Sources/AGCLI.swift) & [`Sources/Antigravity.swift`](Sources/Antigravity.swift)）**：
+   - 优先调用本机官方 `/Applications/Gemini.app/Contents/Helpers/agy -p /usage --output-format json` 结构化报告（在沙盒临时目录中禁用自动更新并屏蔽后台弹出浏览器）；若无 CLI 则回退至同用户本地环回 `language_server` 状态查询。
+   - 不读取、不复制、不上传任何 OAuth 凭证。
 
-通过本机 `codex app-server --stdio` 完成 initialize / initialized 握手，再查询 `account/rateLimits/read`。只调用额度读取接口，不创建对话或发起模型任务，不消费重置券，不修改 Codex 配置和登录。应用不读取、复制或上传凭证文件；认证由 Codex 自己处理。查询需要联网访问 Codex 服务。
+---
 
-优先选取 `rateLimitsByLimitId.codex`，兼容旧 `rateLimits`；按窗口长度 300 分钟、10080 分钟识别五小时和周额度，避免把其他窗口混进来。缺失数据保持未知。显示百分比为 `100 - usedPercent`，并限制在 0–100；无法换算成确定的剩余提问次数。周额度耗尽也会显示额度限制。
+## 构建与测试
 
-读取超时为 25 秒；使用非阻塞等待和受限的子进程退出等待，避免一直卡在“正在更新”。短暂失败后，菜单栏在 `~` 前缀下保留最多 10 分钟内且未跨重置时间的最近结果；无法确认的旧窗口、过期数据及登录错误仍显示未知。可重试失败依次在 10、30、60 秒后重试，之后最长每 3 分钟重试；登录/不兼容错误避免快速重试。面板区分连接、限流、登录等原因，并显示下次重试时间。额度不写入持久缓存；只保存外观、显示偏好和手动选择的程序路径。平时不保留查询子进程。
-
-官方协议文档：https://learn.chatgpt.com/docs/app-server
-
-## 构建
-
-当前交付为 Apple Silicon（arm64），最低 macOS 15。使用 Xcode 27 / Swift 6.4 验证，以 Swift 5 语言兼容模式构建。无需第三方依赖。
+环境要求：Apple Silicon (`arm64`)，macOS 15.0 及以上，Xcode / Command Line Tools（Swift 5 兼容模式编译，无任何第三方依赖）。
 
 ```sh
+# 1. 运行完整自动化回归测试（涵盖 Codex 解析、AG 分组隔离、退避恢复、图标渲染与主题持久化）
+./test.sh
+
+# 2. 编译并签名生成 Codex Battery.app
 ./build.sh
-```
 
-输出 `Codex Battery.app`，采用本机 ad hoc 签名。不是经过 Developer ID 公证的公开分发版本；当前验证范围是本机，未验证其他 Mac 或 Intel 版本。
-
-真实接口诊断（不启动图形界面）：
-
-```sh
+# 3. 命令行诊断探针（不启动 GUI，直接输出 JSON 额度摘要）
 "Codex Battery.app/Contents/MacOS/CodexBattery" --probe
 ```
 
-额度解析检查：
+---
 
-```sh
-./test.sh
+## 目录结构
+
+```text
+.
+├── Sources/
+│   ├── App.swift            # NSStatusItem 菜单栏宿主、NSPopover 生命周期与刷新微动效
+│   ├── Panel.swift          # SwiftUI 面板视图（4 套主题布局 + Apple HIG / Cyber 双色彩体系）
+│   ├── StatusIcon.swift     # 三种自绘矢量状态栏图标、双服务合成渲染与主题枚举持久化
+│   ├── Store.swift          # Codex 状态管理、定时轮询与开机自启 (SMAppService)
+│   ├── Quota.swift          # Codex stdio JSON-RPC 握手与窗口解析
+│   ├── Antigravity.swift    # Antigravity 模型组模型、Store 与本地服务发现
+│   ├── AGCLI.swift          # 官方 agy CLI /usage 沙盒调用与解析
+│   └── RefreshPolicy.swift  # 缓存新鲜度判定与阶梯退避重试策略
+├── Tests/                   # 6 组独立可执行单元与集成回归测试
+├── Resources/               # 应用图标资源与生成脚本
+├── docs/images/             # README 预览截图
+├── Info.plist               # macOS 应用 Bundle 配置
+├── build.sh                 # 一键编译、清理扩展属性与 ad-hoc 签名脚本
+└── test.sh                  # 一键编译并运行全部测试套件
 ```
 
-源码：`Sources/App.swift` 管理菜单栏和窗口；`Sources/Panel.swift` 管理界面及动画；`Sources/Quota.swift` 管理协议和解析；`Sources/Store.swift` 管理刷新和偏好；`Sources/StatusIcon.swift` 管理三种状态栏矢量图标和外观偏好标识；`Sources/RefreshPolicy.swift` 管理缓存有效期和失败重试策略。
+---
 
-## 验证范围
+## 版本更新记录
 
-- 独立进程实际读取本机登录账户五小时、周额度和重置时间；返回的是 300 分钟窗口。
-- 9 项额度解析检查通过：多额度桶优先级、窗口位置变化、时间戳、旧协议、周额度缺失、其他额度排除、其他窗口排除和异常百分比边界。
-- 实际启动应用，并通过 macOS 可访问性及截图核对真实额度、重置时间、玻璃卡片、设置页、刷新按钮。
-- 菜单栏百分比设置完成关闭、开启验证，并恢复为开启。
-- 1.1 新增 8 项外观检查通过：默认外观、三种偏好保存/恢复、未知偏好安全回退、三种图标在未知/空/低/部分/满额度下的渲染差异。
-- 1.1 实机验证外观选择器三项切换及选中状态；退出并重启后仍保留小幽灵，最后恢复默认能量环。
-- 登录启动使用系统 SMAppService 实现；默认关闭，未进行注销、重启验收。
-- 深色模式、减少动态效果和降低透明度已实现系统适配；未修改用户系统偏好进行逐项实测。
-
-## 移除
-
-先在设置中关闭登录时启动（如曾开启），退出应用，再把 `/Applications/Codex Battery.app` 移到废纸篓。不会修改或删除 Codex 的账户数据。
-
-## GitHub 迭代
-
-仓库包含 `Sources/`、`Tests/`、`Resources/`、`Info.plist`、`build.sh`、`test.sh`、`.gitignore` 和这份说明。生成的 App、压缩包、实测截图及本机验收记录已被 `.gitignore` 排除。仓库不需要账户凭证或 API Key；请勿提交 Codex 的认证文件。
-
-修改源码后运行测试和构建，在 Mac 上确认界面，再将新版 App 打包发布。GitHub 网页改源码不会自动更新已安装的 App。GitHub Actions 自动构建、Release 发布、Developer ID 签名与公证、应用内自动更新尚未配置，需要后续单独实现。
-
-构建脚本优先使用 `/Applications/Xcode.app`；不更改系统 `xcode-select`。Xcode 放在外置盘时，可以通过 `DEVELOPER_DIR` 指定其 `Contents/Developer` 目录后运行构建脚本。外置盘必须保持连接。
-
-## 1.1.1 更新
-
-标题下方和额度下方的日常提示统一为“赶紧蹬！不蹬完就亏了！！”。异常和额度限制提示保持原有表达。
-
-## 1.1.2 修复
-
-修复一次短暂查询失败就隐藏数字、随后长达 15 分钟才重试的问题。增加最近结果的明确标记和快速恢复，刷新计时器使用 common run-loop mode。增加刷新策略、分片协议响应、限流后恢复、无输出且拒绝正常退出的子进程超时，以及实际 Store 自动重试的回归检查。
+- **2.1.0**：
+  - 全新升级 `Agent Battery` 视觉体系：遵循 Apple HIG 90/10 色彩克制原则重构默认「原生克制」模式（纯净中性毛玻璃、黑白灰字体层级、语义绿/琥珀能量条），同时保留「极客双色」模式可切换。
+  - 内置 `Bento 双核`、`Ultra 双环`、`流体胶囊`、`全景 HUD` 四套可选面板布局。
+  - 修复设置页固定高度溢出卡片边界与双标题冲突 Bug，补齐双内凹遥测槽与状态栏刷新过渡动画。
+- **2.0.2**：
+  - 新增 OpenAI Codex + Google Antigravity 双服务支持与模型分组展示；状态栏支持单服务与双服务合体图标模式。
+- **1.1.2**：
+  - 修复短暂查询失败即隐藏数字的问题，增加 10 分钟缓存标记、阶梯快速重试与子进程超时强杀保护。
+- **1.1.0 - 1.1.1**：
+  - 新增能量环、五段能量条、小幽灵三种状态栏矢量图标与偏好设置页。

@@ -11,6 +11,8 @@ import ServiceManagement
     @Published var launchAtLogin = SMAppService.mainApp.status == .enabled
     @Published var showPercentage = UserDefaults.standard.object(forKey: "showPercentage") as? Bool ?? true
     @Published var iconStyle = StatusIconStyle.restored()
+    @Published var panelTheme = PanelTheme.restored()
+    @Published private(set) var displayMode = StatusDisplayMode.restored()
     var onChange: (() -> Void)?
     private let fetcher: @Sendable (String?) throws -> QuotaResponse
     init(fetcher: @escaping @Sendable (String?) throws -> QuotaResponse = { try QuotaClient.fetch(custom: $0) }) {
@@ -33,8 +35,7 @@ import ServiceManagement
     var unavailable: Bool { response?.ordinaryUsageAllowed == false || response?.bucket?.spendControlReached == true || weekly?.remaining == 0 || fiveHour?.remaining == 0 }
     var tint: Color {
         guard !stale else { return .secondary }
-        let value = fiveHour?.remaining ?? 0
-        return unavailable || value <= 10 ? .red : value <= 25 ? .orange : Color(red: 0.12, green: 0.67, blue: 0.48)
+        return Color(red: 0.06, green: 0.78, blue: 0.56)
     }
     func start() { refresh() }
     func refreshIfNeeded() {
@@ -72,11 +73,21 @@ import ServiceManagement
             if let timer { RunLoop.main.add(timer, forMode: .common) }
         }
     }
+    func setDisplayMode(_ mode: StatusDisplayMode) {
+        displayMode = mode
+        UserDefaults.standard.set(mode.rawValue,forKey:"statusDisplayMode")
+        onChange?()
+    }
     func setIconStyle(_ style: StatusIconStyle) {
         guard iconStyle != style else { return }
         iconStyle = style
         UserDefaults.standard.set(style.rawValue, forKey: "statusIconStyle")
         onChange?()
+    }
+    func setPanelTheme(_ theme: PanelTheme) {
+        guard panelTheme != theme else { return }
+        panelTheme = theme
+        UserDefaults.standard.set(theme.rawValue, forKey: "panelTheme")
     }
     func setPercentage(_ enabled: Bool) {
         showPercentage = enabled

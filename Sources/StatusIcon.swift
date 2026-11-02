@@ -97,3 +97,84 @@ enum StatusIconRenderer {
         return image
     }
 }
+
+enum PanelTheme: String, CaseIterable, Identifiable {
+    case bento, ultra, capsule, hud
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .bento: return "Bento 双核"
+        case .ultra: return "Ultra 双环"
+        case .capsule: return "流体胶囊"
+        case .hud: return "全景 HUD"
+        }
+    }
+    var subtitle: String {
+        switch self {
+        case .bento: return "双卡并排 + 联动遥测"
+        case .ultra: return "同心双环 + 16段矩阵"
+        case .capsule: return "横向玻璃管 + 双格"
+        case .hud: return "零切换全窗口同屏"
+        }
+    }
+    var iconName: String {
+        switch self {
+        case .bento: return "square.split.2x1.fill"
+        case .ultra: return "circle.circle.fill"
+        case .capsule: return "battery.100percent"
+        case .hud: return "terminal.fill"
+        }
+    }
+    static func restored(from defaults: UserDefaults = .standard) -> Self {
+        Self(rawValue: defaults.string(forKey: "panelTheme") ?? "") ?? .bento
+    }
+}
+
+enum StatusDisplayMode: String, CaseIterable, Identifiable {
+    case codex, antigravity, both
+    var id: String { rawValue }
+    var title: String { switch self { case .codex: return "仅 Codex"; case .antigravity: return "仅 Antigravity"; case .both: return "两者" } }
+    static func restored(from defaults: UserDefaults = .standard) -> Self {
+        if let raw = defaults.string(forKey:"statusDisplayMode"), let mode = Self(rawValue:raw) { return mode }
+        return (defaults.object(forKey:"compactDual") as? Bool ?? true) ? .both : .codex
+    }
+    func target(codex: Double?, antigravity: Double?) -> Double? {
+        switch self { case .codex: return codex; case .antigravity: return antigravity; case .both: return nil }
+    }
+}
+
+extension StatusIconRenderer {
+    static func combined(style: StatusIconStyle, codex: Double?, gravity: Double?, phase: Double = 0, refreshing: Bool = false) -> NSImage {
+        let image = NSImage(size:NSSize(width:26,height:20),flipped:false) { _ in
+            if style == .ring {
+                let center = NSPoint(x: 13, y: 10)
+                for (radius,value) in [(8.0,codex),(4.5,gravity)] {
+                    func arc(_ value:Double,_ alpha:CGFloat) {
+                        let p=NSBezierPath();p.appendArc(withCenter:center,radius:radius,startAngle:230,endAngle:230-280*value/100,clockwise:true)
+                        p.lineWidth=1.7;p.lineCapStyle = .round;NSColor.black.withAlphaComponent(alpha).setStroke();p.stroke()
+                    }
+                    arc(100,0.2)
+                    if let value, value > 0 { arc(min(100,max(0,value)),1) }
+                    if value == nil {
+                        NSColor.black.withAlphaComponent(0.5).setFill()
+                        NSBezierPath(ovalIn:NSRect(x:12.3,y:10-radius-0.7,width:1.4,height:1.4)).fill()
+                    }
+                }
+                if refreshing && phase > 0 && phase < 1 {
+                    let a = (230 - 280 * phase) * .pi / 180
+                    NSColor.black.setFill()
+                    NSBezierPath(ovalIn: NSRect(x: center.x + 8 * cos(a) - 1.2, y: center.y + 8 * sin(a) - 1.2, width: 2.4, height: 2.4)).fill()
+                }
+            } else if style == .bars {
+                Self.image(style:.bars,remaining:codex,phase:phase,refreshing:refreshing).draw(in:NSRect(x:0,y:10,width:26,height:10))
+                Self.image(style:.bars,remaining:gravity,phase:phase,refreshing:refreshing).draw(in:NSRect(x:0,y:0,width:26,height:10))
+            } else {
+                Self.image(style:.ghost,remaining:codex,phase:phase,refreshing:refreshing).draw(in:NSRect(x:0,y:1,width:13,height:18))
+                Self.image(style:.ghost,remaining:gravity,phase:phase,refreshing:refreshing).draw(in:NSRect(x:13,y:1,width:13,height:18))
+            }
+            return true
+        }
+        image.isTemplate=true
+        return image
+    }
+}

@@ -3,14 +3,13 @@ import SwiftUI
 
 @MainActor final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     let store = QuotaStore()
+    let ag = AGStore()
     private var status: NSStatusItem!
     private let popover = NSPopover()
     private var wakeObserver: NSObjectProtocol?
     private var freshnessTimer: Timer?
     private var iconAnimation: Timer?
-    private var displayedRemaining: Double?
-    private var renderedStyle: StatusIconStyle?
-    private var wasLoading = false
+    private var wasRefreshing = false
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         status = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -23,10 +22,12 @@ import SwiftUI
         popover.animates = !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         popover.delegate = self
         store.onChange = { [weak self] in self?.updateStatus() }
+        ag.onChange = { [weak self] in self?.updateStatus() }
         updateStatus()
         store.start()
+        ag.refresh()
         wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor in self?.store.refresh() }
+            Task { @MainActor in self?.store.refresh(); self?.ag.refresh() }
         }
         freshnessTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.store.updateFreshness() }
@@ -42,45 +43,51 @@ import SwiftUI
     }
     func updateStatus() {
         guard let button = status.button else { return }
-        let target = store.menuRemaining
-        let shouldAnimate = target != displayedRemaining || renderedStyle != store.iconStyle || store.loading != wasLoading
-        if shouldAnimate {
-            animateIcon(to: target)
-        } else if iconAnimation == nil {
-            button.image = StatusIconRenderer.image(style: store.iconStyle, remaining: target)
+        let mode = store.displayMode
+        let isRefreshing = (mode != .antigravity && store.loading) || (mode != .codex && ag.loading)
+        let shouldStartAnim = isRefreshing && !wasRefreshing && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        wasRefreshing = isRefreshing
+        if !isRefreshing {
+            iconAnimation?.invalidate(); iconAnimation = nil
         }
-        wasLoading = store.loading
-        renderedStyle = store.iconStyle
-        button.font = .monospacedDigitSystemFont(ofSize: 11, weight: .medium)
-        button.title = store.showPercentage ? (target.map { " \(store.cachedForMenu ? "~" : "")\(Int($0.rounded()))%" } ?? " —") : ""
-        button.toolTip = target == nil ? "Codex Battery · 等待更新" : "\(store.cachedForMenu ? "上次读取 · 正在重试" : "Codex 五小时可用量") \(Int((target ?? 0).rounded()))%"
-        button.setAccessibilityLabel("\(store.iconStyle.title) · \(button.toolTip ?? "Codex Battery")")
-    }
-    private func animateIcon(to target: Double?) {
-        iconAnimation?.invalidate(); iconAnimation = nil
-        let start = displayedRemaining ?? target
-        let style = store.iconStyle
-        let refreshing = store.loading
-        displayedRemaining = target
-        guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else {
-            status.button?.image = StatusIconRenderer.image(style: style, remaining: target)
-            return
+        let target = mode.target(codex:store.menuRemaining,antigravity:ag.remaining)
+        func renderIcon(phase: Double = 0, refreshing: Bool = false) -> NSImage {
+            mode == .both
+                ? StatusIconRenderer.combined(style:store.iconStyle,codex:store.menuRemaining,gravity:ag.remaining,phase:phase,refreshing:refreshing)
+                : StatusIconRenderer.image(style:store.iconStyle,remaining:target,phase:phase,refreshing:refreshing)
         }
-        let began = Date()
-        let duration = 0.65
-        status.button?.image = StatusIconRenderer.image(style: style, remaining: start)
-        let timer = Timer(timeInterval: 1.0 / 30, repeats: true) { [weak self] timer in
-            Task { @MainActor in
-                guard let self else { timer.invalidate(); return }
-                let t = min(1, Date().timeIntervalSince(began) / duration)
-                let eased = 1 - pow(1 - t, 3)
-                let value: Double? = target.flatMap { end in start.map { $0 + (end - $0) * eased } ?? end }
-                self.status.button?.image = StatusIconRenderer.image(style: style, remaining: value, phase: t, refreshing: refreshing)
-                if t >= 1 { timer.invalidate(); self.iconAnimation = nil }
+        if shouldStartAnim && iconAnimation == nil {
+            let start = Date()
+            let duration = 0.65
+            iconAnimation = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] timer in
+                Task { @MainActor in
+                    guard let self, let btn = self.status.button else { timer.invalidate(); return }
+                    let elapsed = Date().timeIntervalSince(start)
+                    if elapsed >= duration {
+                        timer.invalidate()
+                        self.iconAnimation = nil
+                        btn.image = renderIcon(phase: 0, refreshing: false)
+                    } else {
+                        btn.image = renderIcon(phase: elapsed / duration, refreshing: true)
+                    }
+                }
             }
+        } else if iconAnimation == nil {
+            button.image = renderIcon()
         }
-        iconAnimation = timer
-        RunLoop.main.add(timer, forMode: .common)
+        button.font = .monospacedDigitSystemFont(ofSize:11,weight:.medium)
+        let cached = mode == .codex && store.cachedForMenu
+        button.title = mode != .both && store.showPercentage ? target.map { " \(cached ? "~" : "")\(Int($0))%" } ?? " —" : ""
+        let codex = store.menuRemaining.map { "\(store.cachedForMenu ? "~" : "")\(Int($0))%" } ?? "—"
+        let gravity = ag.remaining.map { "\(Int($0))%" } ?? "—"
+        switch mode {
+        case .codex: button.toolTip = "Codex · 五小时可用量 \(codex)"
+        case .antigravity: button.toolTip = "Antigravity · \(AGQuota.groupTitle(ag.selectedGroup)) · 本组较低余量 \(gravity)"
+        case .both:
+            let positions = store.iconStyle == .ring ? "外 Codex · 内 AG" : store.iconStyle == .bars ? "上 Codex · 下 AG" : "左 Codex · 右 AG"
+            button.toolTip = "Codex \(codex) · AG \(gravity)（\(AGQuota.groupTitle(ag.selectedGroup))）\n\(positions)"
+        }
+        button.setAccessibilityLabel("\(mode.title) · \(store.iconStyle.title) · \(button.toolTip ?? "")")
     }
     @objc func togglePopover() {
         if NSApp.currentEvent?.type == .rightMouseUp {
@@ -93,13 +100,19 @@ import SwiftUI
         } else if popover.isShown { popover.performClose(nil) }
         else { showPopover() }
     }
-    @objc func refresh() { store.refresh() }
+    @objc func refresh() { store.refresh(); ag.refresh() }
     @objc func quit() { NSApp.terminate(nil) }
     func showPopover() {
         guard let button = status.button else { return }
-        let controller = NSHostingController(rootView: QuotaPanel(store: store))
-        controller.sizingOptions = [.preferredContentSize]
-        popover.contentViewController = controller
+        if popover.isShown {
+            popover.contentViewController?.view.window?.makeKey()
+            return
+        }
+        if popover.contentViewController == nil {
+            let controller = NSHostingController(rootView: QuotaPanel(store: store, ag: ag))
+            controller.sizingOptions = [.preferredContentSize]
+            popover.contentViewController = controller
+        }
         store.refreshIfNeeded()
         NSApp.activate(ignoringOtherApps: true)
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
