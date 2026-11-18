@@ -9,3 +9,11 @@ xcuserdata/
 /Preview.png
 /Verification.json
 /Appearance.png
+__pycache__/
+*.py[cod]
+.env
+.env.*
+!.env.example
+*.log
+auth.json
+state.json

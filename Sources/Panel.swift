@@ -381,6 +381,7 @@ struct LiquidCapsuleTube: View {
 struct QuotaPanel: View {
     @ObservedObject var store: QuotaStore
     @ObservedObject var ag: AGStore
+    @ObservedObject private var deepSeek = DeepSeekStore.shared
     @AppStorage("panelService") private var selectedService = 0
     @AppStorage("colorPhilosophy") private var colorModeRaw = ColorPhilosophy.appleHIG.rawValue
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -390,6 +391,15 @@ struct QuotaPanel: View {
     @State private var showOtherGroups = false
 
     private var isCyber: Bool { colorModeRaw == ColorPhilosophy.cyberDual.rawValue }
+
+    private var serviceAccent: Color {
+        guard isCyber else { return .primary }
+        switch selectedService {
+        case 0: return ThemePalette.codexMint
+        case 1: return ThemePalette.agViolet
+        default: return .accentColor
+        }
+    }
 
     private var codexLow: Bool {
         guard let rem = store.fiveHour?.remaining else { return false }
@@ -436,10 +446,14 @@ struct QuotaPanel: View {
     var body: some View {
         VStack(spacing: 13) {
             header
+            if !showSettings { servicePicker }
 
             ZStack(alignment: .top) {
                 if showSettings {
                     settingsContent
+                        .transition(panelTransition)
+                } else if selectedService == 2 {
+                    DeepSeekBalanceView(theme: store.panelTheme, accent: serviceAccent)
                         .transition(panelTransition)
                 } else {
                     switch store.panelTheme {
@@ -501,7 +515,7 @@ struct QuotaPanel: View {
     private var header: some View {
         HStack(spacing: 10) {
             Image(systemName: showSettings ? "slider.horizontal.3" : "battery.75percent")
-                .font(.title3).foregroundStyle(.secondary)
+                .font(.title3).foregroundStyle(isCyber && !showSettings ? serviceAccent : .secondary)
             VStack(alignment: .leading, spacing: 3) {
                 Text(showSettings ? "设置" : "agent battery").font(.headline)
                 Text(showSettings ? "外观、菜单栏与服务" : "查看 AI 服务可用额度")
@@ -511,12 +525,12 @@ struct QuotaPanel: View {
             if showSettings {
                 Button("完成", action: returnToQuota).keyboardShortcut(.cancelAction)
             } else {
-                Button { store.refresh(); ag.refresh() } label: {
-                    if store.loading || ag.loading {
+                Button(action: refreshSelectedService) {
+                    if selectedServiceLoading {
                         ProgressView().controlSize(.small).frame(width: 16, height: 16)
                     } else { Image(systemName: "arrow.clockwise") }
                 }
-                .disabled(store.loading || ag.loading)
+                .disabled(selectedServiceLoading)
                 .keyboardShortcut("r", modifiers: .command)
                 .help("刷新额度（⌘R）").accessibilityLabel("刷新额度")
                 Button { showSettings = true } label: { Image(systemName: "gearshape") }
@@ -530,16 +544,11 @@ struct QuotaPanel: View {
 
     private var bentoThemeView: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Picker("当前查看的服务", selection: $selectedService) {
-                Text("Codex").tag(0)
-                Text("Antigravity").tag(1)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
             if selectedService == 0 {
                 VStack(alignment: .leading, spacing: 16) {
                     HStack {
-                        Text("可用额度").font(.headline)
+                        Label("可用额度", systemImage: "chart.bar.fill").font(.headline)
+                            .foregroundStyle(serviceAccent)
                         Spacer()
                         if let plan = store.response?.bucket?.planType { Text(plan.capitalized).font(.caption).foregroundStyle(.secondary) }
                     }
@@ -549,6 +558,7 @@ struct QuotaPanel: View {
                 }
                 .padding(16)
                 .background(Color(nsColor: .controlBackgroundColor).opacity(0.65), in: RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(isCyber ? serviceAccent.opacity(0.25) : .clear, lineWidth: 1))
                 if let error = store.error {
                     errorBanner(message: error, retryDate: store.nextRetryAt)
                 } else if store.loading && store.response == nil {
@@ -583,10 +593,11 @@ struct QuotaPanel: View {
                 Spacer()
                 Text(value.map { "\(Int($0.rounded()))%" } ?? "—")
                     .font(.system(size: 28, weight: .medium)).monospacedDigit()
+                    .foregroundStyle(value == nil ? Color.primary : (value! <= 15 ? ThemePalette.appleAmber : serviceAccent))
             }
             if let value {
                 ProgressView(value: value, total: 100)
-                    .tint(value <= 15 ? Color.orange : Color.green)
+                    .tint(value <= 15 ? ThemePalette.appleAmber : (isCyber ? serviceAccent : ThemePalette.appleGreen))
                     .accessibilityLabel(title + "可用额度")
                     .accessibilityValue("\(Int(value.rounded()))%")
             } else {
@@ -1022,21 +1033,6 @@ struct QuotaPanel: View {
 
     private var capsuleThemeView: some View {
         VStack(spacing: 12) {
-            HStack(spacing: 6) {
-                capsuleTabButton(
-                    index: 0,
-                    title: "Codex",
-                    badge: store.fiveHour.map { "\(Int($0.remaining.rounded()))%" } ?? "—",
-                    dotColor: codexBarStart
-                )
-                capsuleTabButton(
-                    index: 1,
-                    title: "Antigravity",
-                    badge: ag.remaining.map { "\(Int($0.rounded()))%" } ?? "—",
-                    dotColor: agBarStart
-                )
-            }
-
             if selectedService == 0 {
                 GlassCard(cornerRadius: 20, tint: isCyber ? ThemePalette.codexMint : nil, padding: 15) {
                     VStack(alignment: .leading, spacing: 13) {
@@ -1479,32 +1475,51 @@ struct QuotaPanel: View {
 
     // MARK: - Clean Minimal Status Footer
 
+    private var selectedServiceLoading: Bool {
+        switch selectedService {
+        case 0: return store.loading
+        case 1: return ag.loading
+        default: return deepSeek.loading
+        }
+    }
+
+    private func refreshSelectedService() {
+        switch selectedService {
+        case 0: store.refresh()
+        case 1: ag.refresh()
+        default: deepSeek.refresh(force: true)
+        }
+    }
+
+    private var servicePicker: some View {
+        Picker("当前查看的服务", selection: $selectedService) {
+            Text("Codex").tag(0)
+            Text("Antigravity").tag(1)
+            Text("DeepSeek").tag(2)
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .frame(maxWidth: .infinity)
+    }
+
     private var footer: some View {
-        let isAnyLoading = store.loading || ag.loading
-        let hintText = selectedService == 0 ? "Codex" : "Antigravity"
+        let service = selectedService == 0 ? "Codex" : selectedService == 1 ? "Antigravity" : "DeepSeek"
+        let ready = selectedService == 0 ? !store.stale : selectedService == 1 ? ag.remaining != nil : deepSeek.status == "ready"
         return HStack(spacing: 8) {
             TimelineView(.periodic(from: .now, by: 15)) { context in
+                let date = selectedService == 0 ? store.updatedAt : selectedService == 1 ? ag.updated : deepSeek.updatedAt
                 HStack(spacing: 6) {
-                    Circle()
-                        .fill(isAnyLoading || (selectedService == 0 ? store.stale : ag.remaining == nil) ? Color.secondary : ThemePalette.appleGreen)
+                    Circle().fill(ready && !selectedServiceLoading ? ThemePalette.appleGreen : Color.secondary)
                         .frame(width: 5.5, height: 5.5)
-                    Text(
-                        isAnyLoading
-                            ? "正在同步额度…"
-                            : "\(selectedService == 0 ? freshness(now: context.date) : (ag.updated.map { "更新于 " + $0.formatted(date: .omitted, time: .shortened) } ?? "尚未同步")) · \(hintText)"
-                    )
-                    .font(.system(size: 10.5, weight: .regular))
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
+                    Text(selectedServiceLoading ? "正在更新…" : "\(ready ? date.map { "更新于 " + $0.formatted(date: .omitted, time: .shortened) } ?? "尚未更新" : "等待更新") · \(service)")
+                        .font(.system(size: 10.5)).foregroundStyle(.tertiary).lineLimit(1)
                 }
             }
-            Spacer()
+            Spacer(minLength: 4)
             Text("v" + (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""))
-                .font(.system(size: 10.5, weight: .regular, design: .monospaced))
-                .foregroundStyle(.tertiary)
+                .font(.system(size: 10.5, design: .monospaced)).foregroundStyle(.tertiary)
         }
         .padding(.horizontal, 4)
-        .padding(.top, 1)
     }
 
     // MARK: - Settings View
@@ -1673,6 +1688,14 @@ struct QuotaPanel: View {
                 Picker("色彩", selection: $colorModeRaw) {
                     ForEach(ColorPhilosophy.allCases) { Text($0.title).tag($0.rawValue) }
                 }
+                HStack(spacing: 14) {
+                    Label("Codex", systemImage: "circle.fill")
+                        .foregroundStyle(isCyber ? ThemePalette.codexMint : Color.secondary)
+                    Label("Antigravity", systemImage: "circle.fill")
+                        .foregroundStyle(isCyber ? ThemePalette.agViolet : Color.secondary)
+                }
+                .font(.caption)
+                .accessibilityLabel(isCyber ? "极客双色：Codex 青绿，Antigravity 紫色" : "原生克制：中性界面，额度使用语义色")
             }
             Section {
                 Picker("显示范围", selection: Binding(get: { store.displayMode }, set: { store.setDisplayMode($0) })) {

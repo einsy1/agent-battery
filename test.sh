@@ -25,3 +25,5 @@ xcrun swiftc -swift-version 5 "$ROOT/Sources/StatusIcon.swift" "$ROOT/Tests/Disp
 "$TEST_DIR/display-mode-tests"
 
 python3 "$ROOT/Tests/keeper_tests.py"
+
+python3 "$ROOT/Tests/deepseek_tests.py"

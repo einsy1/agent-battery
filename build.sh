@@ -13,6 +13,7 @@ xcrun swiftc -swift-version 5 -O -whole-module-optimization -target arm64-apple-
   "$ROOT"/Sources/*.swift -o "$APP/Contents/MacOS/CodexBattery" \
   -framework AppKit -framework SwiftUI -framework ServiceManagement
 cp "$ROOT/Info.plist" "$APP/Contents/Info.plist"
+cp "$ROOT/THIRD_PARTY_NOTICES.md" "$APP/Contents/Resources/"
 SWITCHER="$APP/Contents/Resources/ModelSwitcher"
 mkdir -p "$SWITCHER"
 cp "$ROOT/Resources/ModelSwitcher/switcher.py" "$SWITCHER/"
@@ -20,6 +21,8 @@ python3 -m pip --disable-pip-version-check install --no-compile --target "$SWITC
   -r "$ROOT/Resources/ModelSwitcher/requirements.txt"
 mkdir -p "$APP/Contents/Resources/QuotaKeeper"
 cp "$ROOT/Resources/QuotaKeeper/"*.py "$APP/Contents/Resources/QuotaKeeper/"
+mkdir -p "$APP/Contents/Resources/DeepSeek"
+cp "$ROOT/Resources/DeepSeek/"*.py "$APP/Contents/Resources/DeepSeek/"
 if [[ -f "$ROOT/Resources/AppIcon.icns" ]]; then
   cp "$ROOT/Resources/AppIcon.icns" "$APP/Contents/Resources/"
 fi

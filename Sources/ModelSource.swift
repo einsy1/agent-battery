@@ -33,7 +33,7 @@ struct ModelSourceRow: View {
                     Button("DeepSeek V4 Pro") { run("pro") }
                     Divider()
                     Button("更新 DeepSeek API Key…") {
-                        if let key = promptForKey() { run("key", key: key) }
+                        if let key = Self.promptForKey() { run("key", key: key) }
                     }
                 }
                 .fixedSize()
@@ -61,7 +61,7 @@ struct ModelSourceRow: View {
         run("status")
     }
 
-    private func promptForKey() -> String? {
+    static func promptForKey() -> String? {
         let alert = NSAlert()
         alert.messageText = "DeepSeek API Key"
         alert.informativeText = "输入 DeepSeek API Key。agent battery 会将它存入 macOS 钥匙串。"
@@ -86,7 +86,7 @@ struct ModelSourceRow: View {
                 }.value
                 busy = false
                 if outcome.code == 3, action == "flash" || action == "pro" {
-                    guard let key = promptForKey() else { return }
+                    guard let key = Self.promptForKey() else { return }
                     busy = true
                     try await Task.detached {
                         let result = try Self.invoke("key", codex: codex, key: key)
@@ -103,6 +103,7 @@ struct ModelSourceRow: View {
                     message = action == "key"
                         ? "Key 已保存。下次启动 Codex 时生效。"
                         : "配置已更新。新开 Codex CLI 会话或重启桌面端后生效。"
+                    if action == "key" { NotificationCenter.default.post(name: .deepSeekKeyChanged, object: nil) }
                     refresh()
                 }
             } catch {
@@ -112,7 +113,7 @@ struct ModelSourceRow: View {
         }
     }
 
-    nonisolated private static func invoke(_ action: String, codex: URL?, key: String?) throws -> (code: Int32, text: String) {
+    nonisolated static func invoke(_ action: String, codex: URL?, key: String?) throws -> (code: Int32, text: String) {
         guard let helper = Bundle.main.url(forResource: "switcher", withExtension: "py", subdirectory: "ModelSwitcher") else {
             throw ModelSourceError("找不到模型切换组件，请重新构建 agent battery。")
         }
