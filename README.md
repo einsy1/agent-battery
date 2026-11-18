@@ -4,21 +4,21 @@
 
 ## 界面预览
 
-以下截图为旧版外观参考；2.1.2 默认概览与设置已重新整理。
+以下为 **2.1.2 实际运行截图**，使用本地界面预览模式，不发起模型请求。额度尚未读取时如实显示「—」，不填充演示数据。
 
-### 原生克制美学 (Apple HIG Mode · 默认)
+### 新版额度概览
 
-遵循 Apple Human Interface Guidelines 的 **Deference（界面谦逊退后）**、**Clarity（黑白灰字体层级）** 与 **90/10 语义色彩法则**——卡片采用无杂色纯净半透明毛玻璃，色彩仅服务于能量刻度本身：
+原生服务切换，集中展示五小时与每周可用额度。
 
-![主面板预览 (Apple HIG)](docs/images/main-panel.png)
+![2.1.2 额度概览](docs/images/main-panel.png)
 
-### 内置 4 套面板布局 + 极客双色模式 (Cyber Dual-Tone)
+### 新版分组设置
 
-内置 **Bento 双核控制中心**、**Apple Watch Ultra 双环精密仪表**、**果味横向流体胶囊**、**Raycast 极客全景 HUD** 四套 UI 布局，并支持切换「原生克制 (Apple HIG)」与「极客双色 (Cyber Dual-Tone)」色彩体系：
+外观、菜单栏显示范围、图标样式与服务设置分别分组，模型切换与满额自动触发在设置中管理。内容可滚动。
 
-![四套内置极客苹果风主题总览](docs/images/themes-overview.png)
+![2.1.2 分组设置](docs/images/appearance.png)
 
-![状态栏图标外观设置](docs/images/appearance.png)
+保留 Ultra 双环、流体胶囊与全景 HUD 三种布局，可在设置 → 外观中切换。
 
 ---
 
