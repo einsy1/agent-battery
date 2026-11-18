@@ -23,11 +23,13 @@ import SwiftUI
         popover.delegate = self
         store.onChange = { [weak self] in self?.updateStatus() }
         ag.onChange = { [weak self] in self?.updateStatus() }
+        QuotaKeeper.shared.onChange = { [weak self] in self?.updateStatus() }
+        QuotaKeeper.shared.start()
         updateStatus()
         store.start()
         ag.refresh()
         wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor in self?.store.refresh(); self?.ag.refresh() }
+            Task { @MainActor in self?.store.refresh(); self?.ag.refresh(); QuotaKeeper.shared.check() }
         }
         freshnessTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.store.updateFreshness() }
@@ -87,6 +89,7 @@ import SwiftUI
             let positions = store.iconStyle == .ring ? "外 Codex · 内 AG" : store.iconStyle == .bars ? "上 Codex · 下 AG" : "左 Codex · 右 AG"
             button.toolTip = "Codex \(codex) · AG \(gravity)（\(AGQuota.groupTitle(ag.selectedGroup))）\n\(positions)"
         }
+        button.toolTip = (button.toolTip ?? "") + "\n" + QuotaKeeper.shared.summary
         button.setAccessibilityLabel("\(mode.title) · \(store.iconStyle.title) · \(button.toolTip ?? "")")
     }
     @objc func togglePopover() {
@@ -94,7 +97,7 @@ import SwiftUI
             let menu = NSMenu()
             let refresh = NSMenuItem(title: "立即刷新", action: #selector(refresh), keyEquivalent: "r"); refresh.target = self
             menu.addItem(refresh); menu.addItem(.separator())
-            let quit = NSMenuItem(title: "退出 Codex Battery", action: #selector(quit), keyEquivalent: "q"); quit.target = self
+            let quit = NSMenuItem(title: "退出 agnet battery", action: #selector(quit), keyEquivalent: "q"); quit.target = self
             menu.addItem(quit)
             status.menu = menu; status.button?.performClick(nil); status.menu = nil
         } else if popover.isShown { popover.performClose(nil) }
@@ -117,6 +120,7 @@ import SwiftUI
         NSApp.activate(ignoringOtherApps: true)
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
+        NotificationCenter.default.post(name: .modelSourcePanelOpened, object: nil)
     }
     func applicationWillTerminate(_ notification: Notification) {
         if let wakeObserver { NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver) }
@@ -127,6 +131,21 @@ import SwiftUI
 
 @main struct Entry {
     static func main() {
+        if CommandLine.arguments.contains("--ui-preview") {
+            // Local UI inspection: do not start timers, login flows, or model calls.
+            let app = NSApplication.shared
+            app.setActivationPolicy(.regular)
+            app.appearance = NSAppearance(named: CommandLine.arguments.contains("--dark") ? .darkAqua : .aqua)
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 380, height: 440),
+                                  styleMask: [.titled, .closable], backing: .buffered, defer: false)
+            window.title = "agnet battery · 界面预览"
+            window.contentViewController = NSHostingController(rootView: QuotaPanel(store: QuotaStore(), ag: AGStore()))
+            window.center()
+            window.makeKeyAndOrderFront(nil)
+            app.activate(ignoringOtherApps: true)
+            app.run()
+            return
+        }
         if CommandLine.arguments.contains("--probe") {
             do {
                 let response = try QuotaClient.fetch()

@@ -388,7 +388,6 @@ struct QuotaPanel: View {
     @State private var appeared = false
     @State private var showSettings = false
     @State private var showOtherGroups = false
-    @State private var showAdvanced = false
 
     private var isCyber: Bool { colorModeRaw == ColorPhilosophy.cyberDual.rawValue }
 
@@ -459,10 +458,10 @@ struct QuotaPanel: View {
                     }
                 }
             }
-            .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.84), value: showSettings)
-            .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.84), value: store.panelTheme)
-            .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.84), value: selectedService)
-            .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.84), value: colorModeRaw)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: showSettings)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: store.panelTheme)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: selectedService)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: colorModeRaw)
 
             if !showSettings {
                 footer
@@ -470,7 +469,7 @@ struct QuotaPanel: View {
             }
         }
         .padding(16)
-        .frame(width: 348)
+        .frame(width: 380)
         .fixedSize(horizontal: false, vertical: true)
         .background {
             if reduceTransparency {
@@ -500,152 +499,101 @@ struct QuotaPanel: View {
     // MARK: - Unified Top Header (Restrained Monochrome Hierarchy)
 
     private var header: some View {
-        let isAnyLoading = store.loading || ag.loading
-        return HStack(spacing: 10) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(
-                        isCyber
-                            ? AnyShapeStyle(LinearGradient(colors: [ThemePalette.codexMint.opacity(0.22), ThemePalette.agViolet.opacity(0.22)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                            : AnyShapeStyle(Color.primary.opacity(0.06))
-                    )
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(.primary.opacity(0.10), lineWidth: 0.7)
-                Image(systemName: showSettings ? "slider.horizontal.3" : "command")
-                    .font(.system(size: 14.5, weight: .semibold))
-                    .foregroundStyle(isCyber ? ThemePalette.codexMint : .primary.opacity(0.85))
-                    .contentTransition(.symbolEffect(.replace))
+        HStack(spacing: 10) {
+            Image(systemName: showSettings ? "slider.horizontal.3" : "battery.75percent")
+                .font(.title3).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(showSettings ? "设置" : "agnet battery").font(.headline)
+                Text(showSettings ? "外观、菜单栏与服务" : "查看 AI 服务可用额度")
+                    .font(.caption).foregroundStyle(.secondary)
             }
-            .frame(width: 34, height: 34)
-
-            VStack(alignment: .leading, spacing: 2) {
-                if showSettings {
-                    Text("偏好设置")
-                        .font(.system(size: 14.5, weight: .semibold, design: .rounded))
-                        .tracking(0.2)
-                } else {
-                    HStack(alignment: .firstTextBaseline, spacing: 4.5) {
-                        Text("Agent")
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
-                            .tracking(0.2)
-                            .foregroundStyle(.primary)
-                        Text("Battery")
-                            .font(.system(size: 15, weight: .regular, design: .rounded))
-                            .tracking(0.2)
-                            .foregroundStyle(
-                                isCyber
-                                    ? AnyShapeStyle(LinearGradient(colors: [ThemePalette.codexMint, ThemePalette.agViolet], startPoint: .leading, endPoint: .trailing))
-                                    : AnyShapeStyle(.secondary)
-                            )
-                        Text("2.0")
-                            .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(.tertiary)
-                            .padding(.horizontal, 5.5)
-                            .padding(.vertical, 1.5)
-                            .background(.primary.opacity(0.06), in: Capsule())
-                    }
-                }
-                Text(showSettings ? "主题风格、状态栏与连接配置" : "赶紧蹬！不蹬完就亏了！！")
-                    .font(.system(size: 10, weight: .regular, design: .rounded))
-                    .tracking(0.2)
-                    .foregroundStyle(.tertiary)
-            }
-
-            Spacer()
-
+            Spacer(minLength: 8)
             if showSettings {
-                HoverIconButton(
-                    systemName: "chevron.left",
-                    label: "返回额度",
-                    helpText: "返回当前服务的额度页面，应用继续运行",
-                    action: returnToQuota
-                )
+                Button("完成", action: returnToQuota).keyboardShortcut(.cancelAction)
             } else {
-                HStack(spacing: 6) {
-                    HoverIconButton(
-                        systemName: "arrow.clockwise",
-                        isSpinning: isAnyLoading,
-                        helpText: "立即刷新额度",
-                        action: {
-                            store.refresh()
-                            ag.refresh()
-                        }
-                    )
-                    .disabled(isAnyLoading)
+                Button { store.refresh(); ag.refresh() } label: {
+                    if store.loading || ag.loading {
+                        ProgressView().controlSize(.small).frame(width: 16, height: 16)
+                    } else { Image(systemName: "arrow.clockwise") }
+                }
+                .disabled(store.loading || ag.loading)
+                .keyboardShortcut("r", modifiers: .command)
+                .help("刷新额度（⌘R）").accessibilityLabel("刷新额度")
+                Button { showSettings = true } label: { Image(systemName: "gearshape") }
+                    .keyboardShortcut(",", modifiers: .command)
+                    .help("设置（⌘,）").accessibilityLabel("设置")
+            }
+        }
+        .buttonStyle(.borderless)
+        .controlSize(.regular)
+    }
 
-                    // Quick Layout & Color Philosophy Menu
-                    Menu {
-                        Section("面板布局结构") {
-                            ForEach(PanelTheme.allCases) { theme in
-                                Button {
-                                    withAnimation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.84)) {
-                                        store.setPanelTheme(theme)
-                                    }
-                                } label: {
-                                    Label(
-                                        "\(theme.title) · \(theme.subtitle)",
-                                        systemImage: store.panelTheme == theme ? "checkmark.circle.fill" : theme.iconName
-                                    )
-                                }
-                            }
-                        }
-                        Divider()
-                        Section("色彩设计哲学") {
-                            ForEach(ColorPhilosophy.allCases) { mode in
-                                Button {
-                                    withAnimation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.84)) {
-                                        colorModeRaw = mode.rawValue
-                                    }
-                                } label: {
-                                    Label(
-                                        mode.title,
-                                        systemImage: colorModeRaw == mode.rawValue ? "checkmark.circle.fill" : "circle"
-                                    )
-                                }
-                            }
-                        }
-                    } label: {
-                        Image(systemName: "square.grid.2x2")
-                            .font(.system(size: 11.5, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 28, height: 28)
-                            .background(.primary.opacity(0.05), in: Circle())
-                            .overlay(Circle().strokeBorder(.primary.opacity(0.07), lineWidth: 0.6))
+    private var bentoThemeView: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Picker("当前查看的服务", selection: $selectedService) {
+                Text("Codex").tag(0)
+                Text("Antigravity").tag(1)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            if selectedService == 0 {
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack {
+                        Text("可用额度").font(.headline)
+                        Spacer()
+                        if let plan = store.response?.bucket?.planType { Text(plan.capitalized).font(.caption).foregroundStyle(.secondary) }
                     }
-                    .menuStyle(.borderlessButton)
-                    .fixedSize()
-                    .help("切换布局结构与色彩模式")
-                    .accessibilityLabel("切换面板主题")
-
-                    HoverIconButton(
-                        systemName: "gearshape",
-                        helpText: "设置",
-                        action: {
-                            withAnimation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.84)) {
-                                showSettings = true
-                            }
-                        }
-                    )
+                    nativeQuotaRow("五小时", value: store.menuRemaining, reset: store.fiveHour?.resetDate)
+                    Divider()
+                    nativeQuotaRow("每周", value: store.freshness == .unavailable ? nil : store.weekly?.remaining, reset: store.weekly?.resetDate)
+                }
+                .padding(16)
+                .background(Color(nsColor: .controlBackgroundColor).opacity(0.65), in: RoundedRectangle(cornerRadius: 12))
+                if let error = store.error {
+                    errorBanner(message: error, retryDate: store.nextRetryAt)
+                } else if store.loading && store.response == nil {
+                    Label("正在读取额度…", systemImage: "arrow.triangle.2.circlepath").font(.callout).foregroundStyle(.secondary)
+                }
+                if store.freshness == .cached {
+                    Label("显示最近缓存，正在尝试更新", systemImage: "clock").font(.caption).foregroundStyle(.secondary)
+                }
+            } else {
+                if let error = ag.error { agConnectBanner(error: error) }
+                if ag.loading && ag.quotas.isEmpty {
+                    HStack { ProgressView().controlSize(.small); Text("正在读取额度…") }.font(.callout)
+                } else if ag.remaining != nil {
+                    Picker("模型组", selection: Binding(get: { ag.selectedGroup }, set: { ag.selectGroup($0) })) {
+                        ForEach(ag.groups, id: \.self) { Text(AGQuota.groupTitle($0)).tag($0) }
+                    }
+                    ForEach(ag.quotas.filter { $0.groupKey == ag.selectedGroup }) { quota in
+                        nativeQuotaRow(quota.windowTitle, value: quota.remaining, reset: quota.reset)
+                    }
+                } else if ag.error == nil && !ag.loading {
+                    Label("暂无有效额度，请刷新或在设置中连接服务。", systemImage: "info.circle")
+                        .font(.callout).foregroundStyle(.secondary)
                 }
             }
         }
-        .padding(.horizontal, 2)
     }
 
-    // MARK: - SCHEME A: Bento Dual-Service Control Center
-
-    private var bentoThemeView: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 10) {
-                bentoCodexTile
-                bentoAGTile
+    private func nativeQuotaRow(_ title: String, value: Double?, reset: Date?) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(title).font(.body)
+                Spacer()
+                Text(value.map { "\(Int($0.rounded()))%" } ?? "—")
+                    .font(.system(size: 28, weight: .medium)).monospacedDigit()
             }
-
-            if selectedService == 0 {
-                bentoCodexDetailCard
+            if let value {
+                ProgressView(value: value, total: 100)
+                    .tint(value <= 15 ? Color.orange : Color.green)
+                    .accessibilityLabel(title + "可用额度")
+                    .accessibilityValue("\(Int(value.rounded()))%")
             } else {
-                agDetailCard(compact: true)
+                Capsule().fill(.quaternary).frame(height: 4).accessibilityHidden(true)
             }
+            Text(value == nil ? "暂无有效数据" : reset.map { "重置于 " + $0.formatted(.dateTime.month().day().hour().minute()) } ?? "未提供重置时间")
+                .font(.caption).foregroundStyle(.secondary)
         }
     }
 
@@ -1533,17 +1481,17 @@ struct QuotaPanel: View {
 
     private var footer: some View {
         let isAnyLoading = store.loading || ag.loading
-        let hintText = store.panelTheme == .bento ? "点击上方卡片切换焦点" : store.panelTheme.title
+        let hintText = selectedService == 0 ? "Codex" : "Antigravity"
         return HStack(spacing: 8) {
             TimelineView(.periodic(from: .now, by: 15)) { context in
                 HStack(spacing: 6) {
                     Circle()
-                        .fill(isAnyLoading ? Color.secondary : ThemePalette.appleGreen)
+                        .fill(isAnyLoading || (selectedService == 0 ? store.stale : ag.remaining == nil) ? Color.secondary : ThemePalette.appleGreen)
                         .frame(width: 5.5, height: 5.5)
                     Text(
                         isAnyLoading
                             ? "正在同步额度…"
-                            : "\(freshness(now: context.date)) · \(hintText)"
+                            : "\(selectedService == 0 ? freshness(now: context.date) : (ag.updated.map { "更新于 " + $0.formatted(date: .omitted, time: .shortened) } ?? "尚未同步")) · \(hintText)"
                     )
                     .font(.system(size: 10.5, weight: .regular))
                     .foregroundStyle(.tertiary)
@@ -1551,7 +1499,7 @@ struct QuotaPanel: View {
                 }
             }
             Spacer()
-            Text("v2.0.2")
+            Text("v" + (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""))
                 .font(.system(size: 10.5, weight: .regular, design: .monospaced))
                 .foregroundStyle(.tertiary)
         }
@@ -1711,135 +1659,59 @@ struct QuotaPanel: View {
     }
 
     private func returnToQuota() {
-        withAnimation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.84)) {
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) {
             showSettings = false
         }
     }
 
     private var settingsContent: some View {
-        VStack(spacing: 9) {
-            GlassCard(cornerRadius: 18, padding: 13.5) {
-                VStack(alignment: .leading, spacing: 12) {
-                    panelThemePicker
-
-                    Divider().opacity(0.35)
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("状态栏显示范围")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.secondary)
-                        Picker(
-                            "状态栏显示",
-                            selection: Binding(get: { store.displayMode }, set: { store.setDisplayMode($0) })
-                        ) {
-                            ForEach(StatusDisplayMode.allCases) { mode in
-                                Text(mode.title).tag(mode)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
-                    }
-
-                    iconStylePicker
-
-                    Divider().opacity(0.35)
-
-                    preferenceToggles
+        Form {
+            Section("外观") {
+                Picker("面板布局", selection: Binding(get: { store.panelTheme }, set: { store.setPanelTheme($0) })) {
+                    ForEach(PanelTheme.allCases) { Text($0.title).tag($0) }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            GlassCard(cornerRadius: 18, padding: 12.5) {
-                VStack(alignment: .leading, spacing: 7) {
-                    Text("服务连接与路径")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 2)
-
-                    SettingsActionRow(
-                        icon: "person.crop.circle",
-                        iconTint: .secondary,
-                        title: "Codex：管理登录",
-                        subtitle: "打开本机 Codex / ChatGPT 应用",
-                        trailingIcon: "arrow.up.right",
-                        action: openCodex
-                    )
-
-                    SettingsActionRow(
-                        icon: "sparkles",
-                        iconTint: .secondary,
-                        title: "Antigravity：连接或重新登录",
-                        subtitle: "在官方 CLI 中完成 Google 授权",
-                        trailingIcon: "terminal",
-                        action: {
-                            do { try AGCLI.connect() } catch { store.settingsError = error.localizedDescription }
-                        }
-                    )
-
-                    VStack(alignment: .leading, spacing: 5) {
-                        Button {
-                            withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.84)) {
-                                showAdvanced.toggle()
-                            }
-                        } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 9, weight: .bold))
-                                    .rotationEffect(.degrees(showAdvanced ? 90 : 0))
-                                Text("高级选项")
-                                    .font(.system(size: 10.5, weight: .medium))
-                                Spacer()
-                            }
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 4)
-                            .padding(.top, 2)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-
-                        if showAdvanced {
-                            SettingsActionRow(
-                                icon: "folder",
-                                iconTint: .secondary,
-                                title: "选择 Codex 程序…",
-                                subtitle: UserDefaults.standard.string(forKey: "codexPath") ?? "默认自动检测本机路径",
-                                trailingIcon: "ellipsis",
-                                action: { store.selectExecutable() }
-                            )
-                            .transition(.opacity.combined(with: .move(edge: .top)))
-                        }
-                    }
+                Picker("色彩", selection: $colorModeRaw) {
+                    ForEach(ColorPhilosophy.allCases) { Text($0.title).tag($0.rawValue) }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
-
-            HStack(alignment: .center) {
-                Text("Agent Battery 2.0.2 · 每 3 分钟自动更新")
-                    .font(.system(size: 9.5, weight: .medium, design: .rounded))
-                    .foregroundStyle(.tertiary)
-
-                Spacer()
-
-                Button {
-                    NSApp.terminate(nil)
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "power")
-                            .font(.system(size: 9.5, weight: .semibold))
-                        Text("退出应用")
-                            .font(.system(size: 10.5, weight: .medium))
-                    }
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4.5)
-                    .background(.primary.opacity(0.05), in: Capsule())
-                    .overlay(Capsule().strokeBorder(.primary.opacity(0.08), lineWidth: 0.6))
+            Section {
+                Picker("显示范围", selection: Binding(get: { store.displayMode }, set: { store.setDisplayMode($0) })) {
+                    ForEach(StatusDisplayMode.allCases) { Text($0.title).tag($0) }
                 }
-                .buttonStyle(.plain)
-                .help("结束额度助手，状态栏图标也会消失")
+                Picker("图标样式", selection: Binding(get: { store.iconStyle }, set: { store.setIconStyle($0) })) {
+                    ForEach(StatusIconStyle.allCases) { Text($0.title).tag($0) }
+                }
+                preferenceToggles
+            } header: { Text("菜单栏") } footer: { Text("显示范围仅影响菜单栏，不改变当前查看的服务。") }
+            Section("Codex") {
+                ModelSourceRow()
+                DisclosureGroup("满额自动触发") { QuotaKeeperRow() }
+                Button("管理登录…", action: openCodex)
             }
-            .padding(.horizontal, 4)
+            Section("Antigravity") {
+                Button("连接或重新登录…") {
+                    do { try AGCLI.connect() } catch { store.settingsError = error.localizedDescription }
+                }
+                Text("在官方 CLI 中完成 Google 登录后刷新额度。")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section {
+                DisclosureGroup("高级") {
+                    Button("选择 Codex 程序…") { store.selectExecutable() }
+                    Text(UserDefaults.standard.string(forKey: "codexPath") ?? "自动检测本机程序")
+                        .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                HStack {
+                    Text("agnet battery " + (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""))
+                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("退出") { NSApp.terminate(nil) }.keyboardShortcut("q", modifiers: .command)
+                }
+            }
         }
+        .formStyle(.grouped)
+        .frame(height: min(540, (NSScreen.main?.visibleFrame.height ?? 800) - 160))
     }
 
     // MARK: - Formatting Helpers

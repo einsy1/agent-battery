@@ -23,3 +23,5 @@ xcrun swiftc -swift-version 5 "$ROOT/Sources/Antigravity.swift" "$ROOT/Sources/A
 
 xcrun swiftc -swift-version 5 "$ROOT/Sources/StatusIcon.swift" "$ROOT/Tests/DisplayModeTests.swift" -o "$TEST_DIR/display-mode-tests" -framework AppKit
 "$TEST_DIR/display-mode-tests"
+
+python3 "$ROOT/Tests/keeper_tests.py"
