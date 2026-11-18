@@ -100,7 +100,7 @@ struct QuotaClient {
             data.append(10)
             try input.fileHandleForWriting.write(contentsOf: data)
         }
-        try send(["id": 1, "method": "initialize", "params": ["clientInfo": ["name": "codex_battery", "title": "agnet battery", "version": "1.1.2"]]])
+        try send(["id": 1, "method": "initialize", "params": ["clientInfo": ["name": "codex_battery", "title": "agent battery", "version": "1.1.2"]]])
         var buffer = Data()
         while Date() < deadline {
             // Poll instead of blocking in availableData: a hung child cannot hold loading=true forever.

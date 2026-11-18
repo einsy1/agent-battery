@@ -97,7 +97,7 @@ import SwiftUI
             let menu = NSMenu()
             let refresh = NSMenuItem(title: "立即刷新", action: #selector(refresh), keyEquivalent: "r"); refresh.target = self
             menu.addItem(refresh); menu.addItem(.separator())
-            let quit = NSMenuItem(title: "退出 agnet battery", action: #selector(quit), keyEquivalent: "q"); quit.target = self
+            let quit = NSMenuItem(title: "退出 agent battery", action: #selector(quit), keyEquivalent: "q"); quit.target = self
             menu.addItem(quit)
             status.menu = menu; status.button?.performClick(nil); status.menu = nil
         } else if popover.isShown { popover.performClose(nil) }
@@ -138,7 +138,7 @@ import SwiftUI
             app.appearance = NSAppearance(named: CommandLine.arguments.contains("--dark") ? .darkAqua : .aqua)
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 380, height: 440),
                                   styleMask: [.titled, .closable], backing: .buffered, defer: false)
-            window.title = "agnet battery · 界面预览"
+            window.title = "agent battery · 界面预览"
             window.contentViewController = NSHostingController(rootView: QuotaPanel(store: QuotaStore(), ag: AGStore()))
             window.center()
             window.makeKeyAndOrderFront(nil)

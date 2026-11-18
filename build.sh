@@ -4,10 +4,10 @@ if [[ -z "${DEVELOPER_DIR:-}" && -d /Applications/Xcode.app/Contents/Developer ]
   export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
 fi
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-OUTPUT="$ROOT/agnet battery.app"
+OUTPUT="$ROOT/agent battery.app"
 TASK_BUILD_DIR="$(mktemp -d)"
 trap 'rm -rf "$TASK_BUILD_DIR"' EXIT
-APP="$TASK_BUILD_DIR/agnet battery.app"
+APP="$TASK_BUILD_DIR/agent battery.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 xcrun swiftc -swift-version 5 -O -whole-module-optimization -target arm64-apple-macos15.0 \
   "$ROOT"/Sources/*.swift -o "$APP/Contents/MacOS/CodexBattery" \

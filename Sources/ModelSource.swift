@@ -64,7 +64,7 @@ struct ModelSourceRow: View {
     private func promptForKey() -> String? {
         let alert = NSAlert()
         alert.messageText = "DeepSeek API Key"
-        alert.informativeText = "输入 DeepSeek API Key。agnet battery 会将它存入 macOS 钥匙串。"
+        alert.informativeText = "输入 DeepSeek API Key。agent battery 会将它存入 macOS 钥匙串。"
         let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
         field.placeholderString = "sk-…"
         alert.accessoryView = field
@@ -114,7 +114,7 @@ struct ModelSourceRow: View {
 
     nonisolated private static func invoke(_ action: String, codex: URL?, key: String?) throws -> (code: Int32, text: String) {
         guard let helper = Bundle.main.url(forResource: "switcher", withExtension: "py", subdirectory: "ModelSwitcher") else {
-            throw ModelSourceError("找不到模型切换组件，请重新构建 agnet battery。")
+            throw ModelSourceError("找不到模型切换组件，请重新构建 agent battery。")
         }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")

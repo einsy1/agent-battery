@@ -16,8 +16,8 @@ SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk ./test.sh
 本地界面检查模式（不启动自动触发、定时器、登录流程，不注入演示额度）：
 
 ```sh
-"agnet battery.app/Contents/MacOS/CodexBattery" --ui-preview
-"agnet battery.app/Contents/MacOS/CodexBattery" --ui-preview --dark
+"agent battery.app/Contents/MacOS/CodexBattery" --ui-preview
+"agent battery.app/Contents/MacOS/CodexBattery" --ui-preview --dark
 ```
 
 build.sh 现在会在最终复制后清理残留扩展属性、重新执行本地签名并严格校验。
@@ -26,7 +26,7 @@ build.sh 现在会在最终复制后清理残留扩展属性、重新执行本�
 ## 验证记录
 
 - 完整 test.sh 通过（额度、恢复、分组、图标、偏好持久化、自动触发冷却）。
-- 项目输出与 /Applications/agnet battery.app 均通过 codesign --verify --deep --strict。
+- 项目输出与 /Applications/agent battery.app 均通过 codesign --verify --deep --strict。
 - 实际打开本地预览，检查浅色/深色概览、无数据状态、服务切换、原生设置、设置滚动、布局切换、Escape 返回、重启布局偏好恢复。
 - 未发送真实模型请求，未切换真实模型提供方、修改登录项或执行 Google 登录。
 - 三种保留布局未逐一完成全状态视觉回归；真实网络失败恢复依靠现有回归测试，未进行在线故障注入。

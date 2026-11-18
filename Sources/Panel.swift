@@ -503,7 +503,7 @@ struct QuotaPanel: View {
             Image(systemName: showSettings ? "slider.horizontal.3" : "battery.75percent")
                 .font(.title3).foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 3) {
-                Text(showSettings ? "设置" : "agnet battery").font(.headline)
+                Text(showSettings ? "设置" : "agent battery").font(.headline)
                 Text(showSettings ? "外观、菜单栏与服务" : "查看 AI 服务可用额度")
                     .font(.caption).foregroundStyle(.secondary)
             }
@@ -1703,7 +1703,7 @@ struct QuotaPanel: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 HStack {
-                    Text("agnet battery " + (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""))
+                    Text("agent battery " + (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""))
                         .font(.caption).foregroundStyle(.secondary)
                     Spacer()
                     Button("退出") { NSApp.terminate(nil) }.keyboardShortcut("q", modifiers: .command)

@@ -1,22 +1,22 @@
-# agnet battery (Codex Battery) 2.1.2
+# agent battery (Codex Battery) 2.1.3
 
 一个使用 AppKit 和 SwiftUI 的 macOS 菜单栏工具，监控 **OpenAI Codex** 和 **Google Antigravity (Gemini CLI / IDE)** 的额度，也可切换本机 Codex 的默认模型。非 OpenAI 或 Google 官方产品。
 
 ## 界面预览
 
-以下为 **2.1.2 实际运行截图**，使用本地界面预览模式，不发起模型请求。额度尚未读取时如实显示「—」，不填充演示数据。
+以下为 **2.1.3 实际运行截图**，使用本地界面预览模式，不发起模型请求。额度尚未读取时如实显示「—」，不填充演示数据。
 
 ### 新版额度概览
 
 原生服务切换，集中展示五小时与每周可用额度。
 
-![2.1.2 额度概览](docs/images/main-panel.png)
+![2.1.3 额度概览](docs/images/main-panel.png)
 
 ### 新版分组设置
 
 外观、菜单栏显示范围、图标样式与服务设置分别分组，模型切换与满额自动触发在设置中管理。内容可滚动。
 
-![2.1.2 分组设置](docs/images/appearance.png)
+![2.1.3 分组设置](docs/images/appearance.png)
 
 保留 Ultra 双环、流体胶囊与全景 HUD 三种布局，可在设置 → 外观中切换。
 
@@ -60,11 +60,11 @@
 # 1. 运行完整自动化回归测试（涵盖 Codex 解析、AG 分组隔离、退避恢复、图标渲染与主题持久化）
 ./test.sh
 
-# 2. 编译并签名生成 agnet battery.app
+# 2. 编译并签名生成 agent battery.app
 ./build.sh
 
 # 3. 命令行诊断探针（不启动 GUI，直接输出 JSON 额度摘要）
-"agnet battery.app/Contents/MacOS/CodexBattery" --probe
+"agent battery.app/Contents/MacOS/CodexBattery" --probe
 ```
 
 ---
@@ -95,7 +95,7 @@
 ## 版本更新记录
 
 - **2.1.0**：
-  - 全新升级 `agnet battery` 视觉体系：遵循 Apple HIG 90/10 色彩克制原则重构默认「原生克制」模式（纯净中性毛玻璃、黑白灰字体层级、语义绿/琥珀能量条），同时保留「极客双色」模式可切换。
+  - 全新升级 `agent battery` 视觉体系：遵循 Apple HIG 90/10 色彩克制原则重构默认「原生克制」模式（纯净中性毛玻璃、黑白灰字体层级、语义绿/琥珀能量条），同时保留「极客双色」模式可切换。
   - 内置 `Bento 双核`、`Ultra 双环`、`流体胶囊`、`全景 HUD` 四套可选面板布局。
   - 修复设置页固定高度溢出卡片边界与双标题冲突 Bug，补齐双内凹遥测槽与状态栏刷新过渡动画。
 - **2.0.2**：
@@ -119,4 +119,9 @@ Codex 面板新增“满额时自动轻量触发”开关，默认开启。应�
 
 ## 2.1.2 原生界面调整
 
-项目更名为 agnet battery。默认概览使用原生服务切换，突出五小时和每周可用额度；模型切换、自动触发移入分组设置。支持 ⌘R 刷新、⌘, 设置和 Escape 返回。修复最终 App 残留元数据导致的签名校验失败。保留其他布局和现有核心逻辑。
+项目更名为 agent battery。默认概览使用原生服务切换，突出五小时和每周可用额度；模型切换、自动触发移入分组设置。支持 ⌘R 刷新、⌘, 设置和 Escape 返回。修复最终 App 残留元数据导致的签名校验失败。保留其他布局和现有核心逻辑。
+
+
+## 2.1.3 名称修正
+
+统一项目、App 和仓库名称为 agent battery，修正此前的拼写错误。核心功能逻辑不变。

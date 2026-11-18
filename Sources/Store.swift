@@ -99,7 +99,7 @@ import ServiceManagement
             if launchAtLogin { try SMAppService.mainApp.unregister() }
             else { try SMAppService.mainApp.register() }
             launchAtLogin = SMAppService.mainApp.status == .enabled
-            if SMAppService.mainApp.status == .requiresApproval { settingsError = "请在系统设置 → 通用 → 登录项中允许 agnet battery。" }
+            if SMAppService.mainApp.status == .requiresApproval { settingsError = "请在系统设置 → 通用 → 登录项中允许 agent battery。" }
         } catch { settingsError = "未能更改登录项：\(error.localizedDescription)" }
     }
     func selectExecutable() {
