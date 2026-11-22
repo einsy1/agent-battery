@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     let store = QuotaStore()
     let ag = AGStore()
+    let claude = CCStore()
     private var status: NSStatusItem!
     private let popover = NSPopover()
     private var wakeObserver: NSObjectProtocol?
@@ -23,16 +24,18 @@ import SwiftUI
         popover.delegate = self
         store.onChange = { [weak self] in self?.updateStatus() }
         ag.onChange = { [weak self] in self?.updateStatus() }
+        claude.onChange = { [weak self] in self?.updateStatus() }
         QuotaKeeper.shared.onChange = { [weak self] in self?.updateStatus() }
         QuotaKeeper.shared.start()
         updateStatus()
         store.start()
         ag.refresh()
+        claude.refresh()
         wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor in self?.store.refresh(); self?.ag.refresh(); QuotaKeeper.shared.check() }
+            Task { @MainActor in self?.store.refresh(); self?.ag.refresh(); self?.claude.refresh(); QuotaKeeper.shared.check() }
         }
         freshnessTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.store.updateFreshness() }
+            Task { @MainActor in self?.store.updateFreshness(); self?.claude.updateFreshness(); self?.updateStatus() }
         }
         let firstLaunch = !UserDefaults.standard.bool(forKey: "hasLaunched")
         UserDefaults.standard.set(true, forKey: "hasLaunched")
@@ -46,13 +49,19 @@ import SwiftUI
     func updateStatus() {
         guard let button = status.button else { return }
         let mode = store.displayMode
-        let isRefreshing = (mode != .antigravity && store.loading) || (mode != .codex && ag.loading)
+        let isRefreshing: Bool
+        switch mode {
+        case .codex: isRefreshing = store.loading
+        case .claude: isRefreshing = claude.loading
+        case .antigravity: isRefreshing = ag.loading
+        case .both: isRefreshing = store.loading || ag.loading
+        }
         let shouldStartAnim = isRefreshing && !wasRefreshing && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         wasRefreshing = isRefreshing
         if !isRefreshing {
             iconAnimation?.invalidate(); iconAnimation = nil
         }
-        let target = mode.target(codex:store.menuRemaining,antigravity:ag.remaining)
+        let target = mode.target(codex:store.menuRemaining,antigravity:ag.remaining,claude:claude.menuRemaining)
         func renderIcon(phase: Double = 0, refreshing: Bool = false) -> NSImage {
             mode == .both
                 ? StatusIconRenderer.combined(style:store.iconStyle,codex:store.menuRemaining,gravity:ag.remaining,phase:phase,refreshing:refreshing)
@@ -78,12 +87,15 @@ import SwiftUI
             button.image = renderIcon()
         }
         button.font = .monospacedDigitSystemFont(ofSize:11,weight:.medium)
-        let cached = mode == .codex && store.cachedForMenu
+        let cached = (mode == .codex && store.cachedForMenu) || (mode == .claude && claude.cachedForMenu)
         button.title = mode != .both && store.showPercentage ? target.map { " \(cached ? "~" : "")\(Int($0))%" } ?? " —" : ""
         let codex = store.menuRemaining.map { "\(store.cachedForMenu ? "~" : "")\(Int($0))%" } ?? "—"
         let gravity = ag.remaining.map { "\(Int($0))%" } ?? "—"
         switch mode {
         case .codex: button.toolTip = "Codex · 五小时可用量 \(codex)"
+        case .claude:
+            let value = claude.menuRemaining.map { "\(claude.cachedForMenu ? "~" : "")\(Int($0))%" } ?? "—"
+            button.toolTip = "Claude Code · 五小时可用量 \(value)"
         case .antigravity: button.toolTip = "Antigravity · \(AGQuota.groupTitle(ag.selectedGroup)) · 本组较低余量 \(gravity)"
         case .both:
             let positions = store.iconStyle == .ring ? "外 Codex · 内 AG" : store.iconStyle == .bars ? "上 Codex · 下 AG" : "左 Codex · 右 AG"
@@ -103,7 +115,7 @@ import SwiftUI
         } else if popover.isShown { popover.performClose(nil) }
         else { showPopover() }
     }
-    @objc func refresh() { store.refresh(); ag.refresh() }
+    @objc func refresh() { store.refresh(); ag.refresh(); claude.refresh() }
     @objc func quit() { NSApp.terminate(nil) }
     func showPopover() {
         guard let button = status.button else { return }
@@ -112,11 +124,12 @@ import SwiftUI
             return
         }
         if popover.contentViewController == nil {
-            let controller = NSHostingController(rootView: QuotaPanel(store: store, ag: ag))
+            let controller = NSHostingController(rootView: QuotaPanel(store: store, ag: ag, claude: claude))
             controller.sizingOptions = [.preferredContentSize]
             popover.contentViewController = controller
         }
         store.refreshIfNeeded()
+        claude.refreshIfNeeded()
         NSApp.activate(ignoringOtherApps: true)
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
@@ -139,7 +152,7 @@ import SwiftUI
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 380, height: 440),
                                   styleMask: [.titled, .closable], backing: .buffered, defer: false)
             window.title = "agent battery · 界面预览"
-            window.contentViewController = NSHostingController(rootView: QuotaPanel(store: QuotaStore(), ag: AGStore()))
+            window.contentViewController = NSHostingController(rootView: QuotaPanel(store: QuotaStore(), ag: AGStore(), claude: CCStore()))
             window.center()
             window.makeKeyAndOrderFront(nil)
             app.activate(ignoringOtherApps: true)
@@ -153,6 +166,21 @@ import SwiftUI
                     "weeklyRemaining": response.weekly?.remaining ?? -1,
                     "resetTimestamp": response.fiveHour?.resetsAt ?? 0,
                     "windowMinutes": response.fiveHour?.windowDurationMins ?? 0]
+                let data = try JSONSerialization.data(withJSONObject: summary, options: [.prettyPrinted, .sortedKeys])
+                print(String(decoding: data, as: UTF8.self))
+                exit(0)
+            } catch { fputs("\(error.localizedDescription)\n", stderr); exit(1) }
+        }
+        if CommandLine.arguments.contains("--probe-claude") {
+            // Real read-only check: prints plan windows, never credentials.
+            do {
+                let usage = try CCClient.fetch()
+                let summary: [String: Any] = ["plan": usage.plan ?? "",
+                    "fiveHourRemaining": usage.fiveHour?.remaining ?? -1,
+                    "fiveHourReset": usage.fiveHour?.resetsAt ?? 0,
+                    "weeklyRemaining": usage.weekly?.remaining ?? -1,
+                    "weeklyReset": usage.weekly?.resetsAt ?? 0,
+                    "scoped": usage.scoped.map { ["title": $0.title, "remaining": $0.window.remaining] }]
                 let data = try JSONSerialization.data(withJSONObject: summary, options: [.prettyPrinted, .sortedKeys])
                 print(String(decoding: data, as: UTF8.self))
                 exit(0)

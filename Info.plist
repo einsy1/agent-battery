@@ -6,11 +6,11 @@
 <key>CFBundleDisplayName</key><string>agent battery</string>
 <key>CFBundleExecutable</key><string>CodexBattery</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>2.2.0</string>
-<key>CFBundleVersion</key><string>13</string>
+<key>CFBundleShortVersionString</key><string>2.3.0</string>
+<key>CFBundleVersion</key><string>14</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>LSMinimumSystemVersion</key><string>15.0</string>
 <key>LSUIElement</key><true/>
 <key>NSHighResolutionCapable</key><true/>
-<key>NSHumanReadableCopyright</key><string>Independent utility. Not affiliated with OpenAI or Google.</string>
+<key>NSHumanReadableCopyright</key><string>Independent utility. Not affiliated with OpenAI, Anthropic or Google.</string>
 </dict></plist>

@@ -131,15 +131,17 @@ enum PanelTheme: String, CaseIterable, Identifiable {
 }
 
 enum StatusDisplayMode: String, CaseIterable, Identifiable {
-    case codex, antigravity, both
+    case codex, claude, antigravity, both
     var id: String { rawValue }
-    var title: String { switch self { case .codex: return "仅 Codex"; case .antigravity: return "仅 Antigravity"; case .both: return "两者" } }
+    var title: String {
+        switch self { case .codex: return "仅 Codex"; case .claude: return "仅 Claude Code"; case .antigravity: return "仅 Antigravity"; case .both: return "Codex + Antigravity" }
+    }
     static func restored(from defaults: UserDefaults = .standard) -> Self {
         if let raw = defaults.string(forKey:"statusDisplayMode"), let mode = Self(rawValue:raw) { return mode }
         return (defaults.object(forKey:"compactDual") as? Bool ?? true) ? .both : .codex
     }
-    func target(codex: Double?, antigravity: Double?) -> Double? {
-        switch self { case .codex: return codex; case .antigravity: return antigravity; case .both: return nil }
+    func target(codex: Double?, antigravity: Double?, claude: Double? = nil) -> Double? {
+        switch self { case .codex: return codex; case .claude: return claude; case .antigravity: return antigravity; case .both: return nil }
     }
 }
 

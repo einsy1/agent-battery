@@ -35,6 +35,30 @@ enum ThemePalette {
     static let agViolet = Color(red: 0.62, green: 0.38, blue: 0.98)
     static let agIndigo = Color(red: 0.42, green: 0.40, blue: 0.96)
     static let agPink = Color(red: 0.92, green: 0.36, blue: 0.68)
+    static let claudeClay = Color(red: 0.85, green: 0.47, blue: 0.34)
+    static let claudeSand = Color(red: 0.93, green: 0.62, blue: 0.45)
+}
+
+/// Codex and Claude Code share the same plan shape (five-hour + weekly windows), so every
+/// layout renders either through this snapshot with identical components.
+struct PlanSnapshot {
+    let isClaude: Bool
+    let fiveHour: QuotaWindow?
+    let weekly: QuotaWindow?
+    let plan: String?
+    let freshness: QuotaFreshness
+    let unavailable: Bool
+    let error: String?
+    let nextRetryAt: Date?
+    let loading: Bool
+    let hasData: Bool
+    let updatedAt: Date?
+    var scoped: [CCScopedWindow] = []
+    var name: String { isClaude ? "Claude Code" : "Codex" }
+    var hudTitle: String { isClaude ? "ANTHROPIC CLAUDE CODE" : "OPENAI CODEX" }
+    var stale: Bool { freshness != .current }
+    var menuRemaining: Double? { freshness == .unavailable ? nil : fiveHour?.remaining }
+    var weeklyRemaining: Double? { freshness == .unavailable ? nil : weekly?.remaining }
 }
 
 // MARK: - Native Frosted & Liquid Glass Materials
@@ -381,6 +405,7 @@ struct LiquidCapsuleTube: View {
 struct QuotaPanel: View {
     @ObservedObject var store: QuotaStore
     @ObservedObject var ag: AGStore
+    @ObservedObject var claude: CCStore
     @ObservedObject private var deepSeek = DeepSeekStore.shared
     @AppStorage("panelService") private var selectedService = 0
     @AppStorage("colorPhilosophy") private var colorModeRaw = ColorPhilosophy.appleHIG.rawValue
@@ -397,14 +422,50 @@ struct QuotaPanel: View {
         switch selectedService {
         case 0: return ThemePalette.codexMint
         case 1: return ThemePalette.agViolet
+        case 3: return ThemePalette.claudeClay
         default: return .accentColor
         }
     }
 
-    private var codexLow: Bool {
-        guard let rem = store.fiveHour?.remaining else { return false }
-        return store.unavailable || rem <= 15
+    private var codexPlan: PlanSnapshot {
+        PlanSnapshot(isClaude: false, fiveHour: store.fiveHour, weekly: store.weekly, plan: store.response?.bucket?.planType,
+                     freshness: store.freshness, unavailable: store.unavailable, error: store.error, nextRetryAt: store.nextRetryAt,
+                     loading: store.loading, hasData: store.response != nil, updatedAt: store.updatedAt)
     }
+
+    private var claudePlan: PlanSnapshot {
+        PlanSnapshot(isClaude: true, fiveHour: claude.fiveHour, weekly: claude.weekly, plan: claude.usage?.plan,
+                     freshness: claude.freshness, unavailable: claude.unavailable, error: claude.error, nextRetryAt: claude.nextRetryAt,
+                     loading: claude.loading, hasData: claude.usage != nil, updatedAt: claude.updatedAt, scoped: claude.usage?.scoped ?? [])
+    }
+
+    /// The plan service in focus: Claude Code when selected, otherwise Codex (layouts that always show a plan card).
+    private var focusPlan: PlanSnapshot { selectedService == 3 ? claudePlan : codexPlan }
+    private var isPlanService: Bool { selectedService == 0 || selectedService == 3 }
+
+    private func planLow(_ plan: PlanSnapshot) -> Bool {
+        guard let rem = plan.fiveHour?.remaining else { return false }
+        return plan.unavailable || rem <= 15
+    }
+    private func planStart(_ plan: PlanSnapshot) -> Color {
+        if planLow(plan) { return ThemePalette.appleAmber }
+        return isCyber ? (plan.isClaude ? ThemePalette.claudeClay : ThemePalette.codexMint) : ThemePalette.appleGreen
+    }
+    private func planEnd(_ plan: PlanSnapshot) -> Color {
+        if planLow(plan) { return ThemePalette.appleAmber.opacity(0.85) }
+        return isCyber ? (plan.isClaude ? ThemePalette.claudeSand : ThemePalette.codexCyan) : ThemePalette.appleGreen.opacity(0.85)
+    }
+    private func planWeeklyStart(_ plan: PlanSnapshot) -> Color {
+        isCyber ? (plan.isClaude ? ThemePalette.claudeClay : ThemePalette.codexMint) : Color.primary.opacity(0.55)
+    }
+    private func planWeeklyEnd(_ plan: PlanSnapshot) -> Color {
+        isCyber ? (plan.isClaude ? ThemePalette.claudeSand : ThemePalette.codexCyan) : Color.primary.opacity(0.40)
+    }
+    private func planTint(_ plan: PlanSnapshot) -> Color? {
+        isCyber ? (plan.isClaude ? ThemePalette.claudeClay : ThemePalette.codexMint) : nil
+    }
+
+    private var codexLow: Bool { planLow(focusPlan) }
 
     private var agLow: Bool {
         guard let rem = ag.remaining else { return false }
@@ -412,20 +473,11 @@ struct QuotaPanel: View {
     }
 
     // Semantic Data Fill Colors (Apple HIG vs Cyber Dual-Tone)
-    private var codexBarStart: Color {
-        if codexLow { return ThemePalette.appleAmber }
-        return isCyber ? ThemePalette.codexMint : ThemePalette.appleGreen
-    }
-    private var codexBarEnd: Color {
-        if codexLow { return ThemePalette.appleAmber.opacity(0.85) }
-        return isCyber ? ThemePalette.codexCyan : ThemePalette.appleGreen.opacity(0.85)
-    }
-    private var weeklyBarStart: Color {
-        isCyber ? ThemePalette.codexMint : Color.primary.opacity(0.55)
-    }
-    private var weeklyBarEnd: Color {
-        isCyber ? ThemePalette.codexCyan : Color.primary.opacity(0.40)
-    }
+    private var codexBarStart: Color { planStart(focusPlan) }
+    private var codexBarEnd: Color { planEnd(focusPlan) }
+    // Antigravity rows keep their own neutral weekly tone, independent of the plan in focus.
+    private var weeklyBarStart: Color { isCyber ? ThemePalette.codexMint : Color.primary.opacity(0.55) }
+    private var weeklyBarEnd: Color { isCyber ? ThemePalette.codexCyan : Color.primary.opacity(0.40) }
     private var agBarStart: Color {
         if agLow { return ThemePalette.appleAmber }
         return isCyber ? ThemePalette.agViolet : ThemePalette.appleGreen
@@ -544,27 +596,32 @@ struct QuotaPanel: View {
 
     private var bentoThemeView: some View {
         VStack(alignment: .leading, spacing: 18) {
-            if selectedService == 0 {
+            if isPlanService {
+                let plan = focusPlan
                 VStack(alignment: .leading, spacing: 16) {
                     HStack {
                         Label("可用额度", systemImage: "chart.bar.fill").font(.headline)
                             .foregroundStyle(serviceAccent)
                         Spacer()
-                        if let plan = store.response?.bucket?.planType { Text(plan.capitalized).font(.caption).foregroundStyle(.secondary) }
+                        if let name = plan.plan { Text(name.capitalized).font(.caption).foregroundStyle(.secondary) }
                     }
-                    nativeQuotaRow("五小时", value: store.menuRemaining, reset: store.fiveHour?.resetDate)
+                    nativeQuotaRow("五小时", value: plan.menuRemaining, reset: plan.fiveHour?.resetDate)
                     Divider()
-                    nativeQuotaRow("每周", value: store.freshness == .unavailable ? nil : store.weekly?.remaining, reset: store.weekly?.resetDate)
+                    nativeQuotaRow("每周", value: plan.weeklyRemaining, reset: plan.weekly?.resetDate)
+                    if !plan.scoped.isEmpty && plan.freshness != .unavailable {
+                        Divider()
+                        planScopedRows(plan)
+                    }
                 }
                 .padding(16)
                 .background(Color(nsColor: .controlBackgroundColor).opacity(0.65), in: RoundedRectangle(cornerRadius: 12))
                 .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(isCyber ? serviceAccent.opacity(0.25) : .clear, lineWidth: 1))
-                if let error = store.error {
-                    errorBanner(message: error, retryDate: store.nextRetryAt)
-                } else if store.loading && store.response == nil {
+                if plan.error != nil {
+                    planErrorView(plan)
+                } else if plan.loading && !plan.hasData {
                     Label("正在读取额度…", systemImage: "arrow.triangle.2.circlepath").font(.callout).foregroundStyle(.secondary)
                 }
-                if store.freshness == .cached {
+                if plan.freshness == .cached {
                     Label("显示最近缓存，正在尝试更新", systemImage: "clock").font(.caption).foregroundStyle(.secondary)
                 }
             } else {
@@ -605,6 +662,43 @@ struct QuotaPanel: View {
             }
             Text(value == nil ? "暂无有效数据" : reset.map { "重置于 " + $0.formatted(.dateTime.month().day().hour().minute()) } ?? "未提供重置时间")
                 .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    /// Claude Code's per-model weekly windows (Opus / Sonnet / server-labelled), in the bento row style.
+    private func planScopedRows(_ plan: PlanSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Text("模型每周额度").font(.caption).foregroundStyle(.secondary)
+            ForEach(plan.scoped) { item in
+                let value = item.window.remaining
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(item.title).font(.callout)
+                        Spacer()
+                        if let date = item.window.resetDate {
+                            Text("重置于 " + date.formatted(.dateTime.month().day().hour().minute()))
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Text("\(Int(value.rounded()))%").font(.callout.weight(.medium)).monospacedDigit()
+                            .foregroundStyle(value <= 15 ? ThemePalette.appleAmber : Color.primary)
+                    }
+                    ProgressView(value: value, total: 100)
+                        .tint(value <= 15 ? ThemePalette.appleAmber : (isCyber ? serviceAccent : ThemePalette.appleGreen))
+                        .accessibilityLabel(item.title + "可用额度")
+                        .accessibilityValue("\(Int(value.rounded()))%")
+                }
+            }
+        }
+    }
+
+    /// Codex errors keep the retry banner; Claude Code errors that need the user offer the official login.
+    @ViewBuilder private func planErrorView(_ plan: PlanSnapshot) -> some View {
+        if let error = plan.error {
+            if plan.isClaude && claude.needsConnect {
+                connectBanner(error: error, title: "连接 Claude Code（官方登录）", icon: "person.badge.key.fill") { claude.connect() }
+            } else {
+                errorBanner(message: error, retryDate: plan.nextRetryAt)
+            }
         }
     }
 
@@ -855,7 +949,8 @@ struct QuotaPanel: View {
     // MARK: - SCHEME B: Apple Watch Ultra Concentric Rings + Matrix
 
     private var ultraThemeView: some View {
-        let codexVal = store.fiveHour?.remaining ?? 0
+        let plan = focusPlan
+        let codexVal = plan.fiveHour?.remaining ?? 0
         let agVal = ag.remaining ?? 0
         let innerRingColor = isCyber ? ThemePalette.agViolet : Color.primary.opacity(0.65)
 
@@ -888,7 +983,7 @@ struct QuotaPanel: View {
                             .frame(width: 62, height: 62)
 
                         VStack(spacing: 1) {
-                            Text(store.fiveHour.map { "\(Int($0.remaining.rounded()))%" } ?? "—")
+                            Text(plan.fiveHour.map { "\(Int($0.remaining.rounded()))%" } ?? "—")
                                 .font(.system(size: 11.5, weight: .semibold, design: .monospaced))
                                 .foregroundStyle(.primary)
                             Text(ag.remaining.map { "\(Int($0.rounded()))%" } ?? "—")
@@ -901,16 +996,16 @@ struct QuotaPanel: View {
                         VStack(alignment: .leading, spacing: 3) {
                             HStack {
                                 Circle().fill(codexBarStart).frame(width: 5.5, height: 5.5)
-                                Text("外环 · Codex 5H")
+                                Text("外环 · \(plan.name) 5H")
                                     .font(.system(size: 11.5, weight: .medium))
                                 Spacer()
-                                Text(store.fiveHour.map { "\(Int($0.remaining.rounded()))%" } ?? "—")
+                                Text(plan.fiveHour.map { "\(Int($0.remaining.rounded()))%" } ?? "—")
                                     .font(.system(size: 13.5, weight: .semibold, design: .rounded))
                                     .monospacedDigit()
                                     .foregroundStyle(.primary)
                             }
                             TimelineView(.periodic(from: .now, by: 30)) { context in
-                                Text("\(resetText(store.fiveHour?.resetDate, now: context.date)) · 周 \(store.weekly.map { "\(Int($0.remaining.rounded()))%" } ?? "—")")
+                                Text("\(resetText(plan.fiveHour?.resetDate, now: context.date)) · 周 \(plan.weekly.map { "\(Int($0.remaining.rounded()))%" } ?? "—")")
                                     .font(.system(size: 10, design: .monospaced))
                                     .foregroundStyle(.tertiary)
                                     .lineLimit(1)
@@ -960,16 +1055,16 @@ struct QuotaPanel: View {
                     RecessedWell(cornerRadius: 12, padding: 10) {
                         VStack(alignment: .leading, spacing: 7) {
                             HStack {
-                                Text("Codex · 五小时窗口")
+                                Text("\(plan.name) · 五小时窗口")
                                     .font(.system(size: 11, weight: .medium))
                                     .foregroundStyle(.secondary)
                                 Spacer()
-                                Text("\(store.fiveHour.map { "\(Int($0.remaining.rounded()))" } ?? "—") / 100")
+                                Text("\(plan.fiveHour.map { "\(Int($0.remaining.rounded()))" } ?? "—") / 100")
                                     .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
                                     .foregroundStyle(.primary)
                             }
                             SegmentedMatrixBar(
-                                value: store.fiveHour?.remaining,
+                                value: plan.fiveHour?.remaining,
                                 segments: 14,
                                 activeColor: codexBarStart,
                                 height: 8
@@ -980,18 +1075,18 @@ struct QuotaPanel: View {
                     RecessedWell(cornerRadius: 12, padding: 10) {
                         VStack(alignment: .leading, spacing: 7) {
                             HStack {
-                                Text("Codex · 每周窗口")
+                                Text("\(plan.name) · 每周窗口")
                                     .font(.system(size: 11, weight: .medium))
                                     .foregroundStyle(.secondary)
                                 Spacer()
-                                Text("\(store.weekly.map { "\(Int($0.remaining.rounded()))%" } ?? "—")")
+                                Text("\(plan.weekly.map { "\(Int($0.remaining.rounded()))%" } ?? "—")")
                                     .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
                                     .foregroundStyle(.primary)
                             }
                             TelemetryProgressBar(
-                                value: store.weekly?.remaining ?? 0,
-                                startColor: weeklyBarStart,
-                                endColor: weeklyBarEnd,
+                                value: plan.weekly?.remaining ?? 0,
+                                startColor: planWeeklyStart(plan),
+                                endColor: planWeeklyEnd(plan),
                                 height: 6.5
                             )
                         }
@@ -1020,9 +1115,7 @@ struct QuotaPanel: View {
                 }
             }
 
-            if let error = store.error {
-                errorBanner(message: error, retryDate: store.nextRetryAt)
-            }
+            planErrorView(plan)
             if let agErr = ag.error {
                 agConnectBanner(error: agErr)
             }
@@ -1033,22 +1126,23 @@ struct QuotaPanel: View {
 
     private var capsuleThemeView: some View {
         VStack(spacing: 12) {
-            if selectedService == 0 {
-                GlassCard(cornerRadius: 20, tint: isCyber ? ThemePalette.codexMint : nil, padding: 15) {
+            if isPlanService {
+                let plan = focusPlan
+                GlassCard(cornerRadius: 20, tint: planTint(plan), padding: 15) {
                     VStack(alignment: .leading, spacing: 13) {
                         HStack(alignment: .lastTextBaseline) {
                             VStack(alignment: .leading, spacing: 3) {
-                                Text(store.stale ? (store.loading && store.response == nil ? "正在连接" : "等待更新") : "五小时可用量")
+                                Text(plan.stale ? (plan.loading && !plan.hasData ? "正在连接" : "等待更新") : "五小时可用量")
                                     .font(.system(size: 11.5, weight: .medium))
                                     .foregroundStyle(.secondary)
                                 HStack(alignment: .firstTextBaseline, spacing: 2) {
-                                    Text(store.fiveHour.map { "\(Int($0.remaining.rounded()))" } ?? "—")
+                                    Text(plan.fiveHour.map { "\(Int($0.remaining.rounded()))" } ?? "—")
                                         .font(.system(size: 46, weight: .regular, design: .rounded))
                                         .tracking(-1.5)
                                         .monospacedDigit()
                                         .foregroundStyle(.primary)
                                         .contentTransition(.numericText())
-                                    if store.fiveHour != nil {
+                                    if plan.fiveHour != nil {
                                         Text("%")
                                             .font(.system(size: 18, weight: .medium, design: .rounded))
                                             .foregroundStyle(.secondary)
@@ -1060,7 +1154,7 @@ struct QuotaPanel: View {
                                 HStack(spacing: 4.5) {
                                     Image(systemName: "clock.arrow.circlepath")
                                         .font(.system(size: 10, weight: .medium))
-                                    Text(resetText(store.fiveHour?.resetDate, now: context.date))
+                                    Text(resetText(plan.fiveHour?.resetDate, now: context.date))
                                         .font(.system(size: 10.5, weight: .medium))
                                         .monospacedDigit()
                                 }
@@ -1072,10 +1166,10 @@ struct QuotaPanel: View {
                         }
 
                         LiquidCapsuleTube(
-                            fraction: (store.fiveHour?.remaining ?? 0) / 100,
+                            fraction: (plan.fiveHour?.remaining ?? 0) / 100,
                             startColor: codexBarStart,
                             endColor: codexBarEnd,
-                            ready: store.fiveHour != nil
+                            ready: plan.fiveHour != nil
                         )
 
                         RecessedWell(cornerRadius: 13, padding: 11) {
@@ -1085,20 +1179,20 @@ struct QuotaPanel: View {
                                         .font(.system(size: 11, weight: .medium))
                                         .foregroundStyle(.secondary)
                                     Spacer()
-                                    if let date = store.weekly?.resetDate {
+                                    if let date = plan.weekly?.resetDate {
                                         Text("\(date.formatted(.dateTime.month().day().hour().minute())) 重置")
                                             .font(.system(size: 10, design: .monospaced))
                                             .foregroundStyle(.tertiary)
                                     }
-                                    Text(store.weekly.map { "\(Int($0.remaining.rounded()))%" } ?? "—")
+                                    Text(plan.weekly.map { "\(Int($0.remaining.rounded()))%" } ?? "—")
                                         .font(.system(size: 12, weight: .semibold, design: .rounded))
                                         .monospacedDigit()
                                         .foregroundStyle(.primary)
                                 }
                                 TelemetryProgressBar(
-                                    value: store.weekly?.remaining ?? 0,
-                                    startColor: weeklyBarStart,
-                                    endColor: weeklyBarEnd,
+                                    value: plan.weekly?.remaining ?? 0,
+                                    startColor: planWeeklyStart(plan),
+                                    endColor: planWeeklyEnd(plan),
                                     height: 6.5
                                 )
                             }
@@ -1106,9 +1200,7 @@ struct QuotaPanel: View {
                     }
                 }
 
-                if let error = store.error {
-                    errorBanner(message: error, retryDate: store.nextRetryAt)
-                }
+                planErrorView(plan)
             } else {
                 agDetailCard(compact: false)
             }
@@ -1152,42 +1244,8 @@ struct QuotaPanel: View {
 
     private var hudThemeView: some View {
         VStack(spacing: 11) {
-            GlassCard(cornerRadius: 18, tint: isCyber ? ThemePalette.codexMint : nil, padding: 14) {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        Circle().fill(codexBarStart).frame(width: 6, height: 6)
-                        Text("OPENAI CODEX")
-                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(.primary)
-                        Spacer()
-                        TimelineView(.periodic(from: .now, by: 30)) { context in
-                            Text(resetText(store.fiveHour?.resetDate, now: context.date))
-                                .font(.system(size: 10, weight: .medium, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    RecessedWell(cornerRadius: 11, padding: 9.5) {
-                        hudMetricRow(
-                            title: "五小时窗口 (300m)",
-                            subtitle: store.fiveHour?.resetDate.map { "\($0.formatted(date: .omitted, time: .shortened)) 重置" } ?? "",
-                            value: store.fiveHour?.remaining,
-                            startColor: codexBarStart,
-                            endColor: codexBarEnd
-                        )
-                    }
-
-                    RecessedWell(cornerRadius: 11, padding: 9.5) {
-                        hudMetricRow(
-                            title: "每周总额度 (7d)",
-                            subtitle: store.weekly?.resetDate.map { "\($0.formatted(.dateTime.month().day())) 重置" } ?? "",
-                            value: store.weekly?.remaining,
-                            startColor: weeklyBarStart,
-                            endColor: weeklyBarEnd
-                        )
-                    }
-                }
-            }
+            hudPlanCard(codexPlan)
+            hudPlanCard(claudePlan)
 
             GlassCard(cornerRadius: 18, tint: isCyber ? ThemePalette.agViolet : nil, padding: 14) {
                 VStack(alignment: .leading, spacing: 10) {
@@ -1239,8 +1297,58 @@ struct QuotaPanel: View {
                 }
             }
 
-            if let error = store.error {
-                errorBanner(message: error, retryDate: store.nextRetryAt)
+            planErrorView(codexPlan)
+            planErrorView(claudePlan)
+        }
+    }
+
+    private func hudPlanCard(_ plan: PlanSnapshot) -> some View {
+        GlassCard(cornerRadius: 18, tint: planTint(plan), padding: 14) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Circle().fill(planStart(plan)).frame(width: 6, height: 6)
+                    Text(plan.hudTitle)
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    TimelineView(.periodic(from: .now, by: 30)) { context in
+                        Text(resetText(plan.fiveHour?.resetDate, now: context.date))
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                RecessedWell(cornerRadius: 11, padding: 9.5) {
+                    hudMetricRow(
+                        title: "五小时窗口 (300m)",
+                        subtitle: plan.fiveHour?.resetDate.map { "\($0.formatted(date: .omitted, time: .shortened)) 重置" } ?? "",
+                        value: plan.fiveHour?.remaining,
+                        startColor: planStart(plan),
+                        endColor: planEnd(plan)
+                    )
+                }
+
+                RecessedWell(cornerRadius: 11, padding: 9.5) {
+                    VStack(spacing: 9) {
+                        hudMetricRow(
+                            title: "每周总额度 (7d)",
+                            subtitle: plan.weekly?.resetDate.map { "\($0.formatted(.dateTime.month().day())) 重置" } ?? "",
+                            value: plan.weekly?.remaining,
+                            startColor: planWeeklyStart(plan),
+                            endColor: planWeeklyEnd(plan)
+                        )
+                        ForEach(plan.scoped) { item in
+                            let rowLow = item.window.remaining <= 15
+                            hudMetricRow(
+                                title: item.title,
+                                subtitle: item.window.resetDate.map { "\($0.formatted(.dateTime.month().day())) 重置" } ?? "",
+                                value: item.window.remaining,
+                                startColor: rowLow ? ThemePalette.appleAmber : planWeeklyStart(plan),
+                                endColor: rowLow ? ThemePalette.appleAmber.opacity(0.85) : planWeeklyEnd(plan)
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -1416,6 +1524,12 @@ struct QuotaPanel: View {
     }
 
     private func agConnectBanner(error: String) -> some View {
+        connectBanner(error: error, title: "连接 Antigravity（Google 官方登录）", icon: "person.badge.key.fill") {
+            do { try AGCLI.connect() } catch { ag.error = error.localizedDescription }
+        }
+    }
+
+    private func connectBanner(error: String, title: String, icon: String, action: @escaping () -> Void) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(alignment: .top, spacing: 6) {
                 Image(systemName: "info.circle")
@@ -1427,12 +1541,10 @@ struct QuotaPanel: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Button {
-                do { try AGCLI.connect() } catch { ag.error = error.localizedDescription }
-            } label: {
+            Button(action: action) {
                 HStack(spacing: 6) {
-                    Image(systemName: "person.badge.key.fill")
-                    Text("连接 Antigravity（Google 官方登录）")
+                    Image(systemName: icon)
+                    Text(title)
                 }
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.primary)
@@ -1479,6 +1591,7 @@ struct QuotaPanel: View {
         switch selectedService {
         case 0: return store.loading
         case 1: return ag.loading
+        case 3: return claude.loading
         default: return deepSeek.loading
         }
     }
@@ -1487,6 +1600,7 @@ struct QuotaPanel: View {
         switch selectedService {
         case 0: store.refresh()
         case 1: ag.refresh()
+        case 3: claude.refresh()
         default: deepSeek.refresh(force: true)
         }
     }
@@ -1494,6 +1608,7 @@ struct QuotaPanel: View {
     private var servicePicker: some View {
         Picker("当前查看的服务", selection: $selectedService) {
             Text("Codex").tag(0)
+            Text("Claude").tag(3)
             Text("Antigravity").tag(1)
             Text("DeepSeek").tag(2)
         }
@@ -1503,11 +1618,17 @@ struct QuotaPanel: View {
     }
 
     private var footer: some View {
-        let service = selectedService == 0 ? "Codex" : selectedService == 1 ? "Antigravity" : "DeepSeek"
-        let ready = selectedService == 0 ? !store.stale : selectedService == 1 ? ag.remaining != nil : deepSeek.status == "ready"
+        let service = ["Codex", "Antigravity", "DeepSeek", "Claude Code"][min(3, max(0, selectedService))]
+        let ready: Bool
+        switch selectedService {
+        case 0: ready = !store.stale
+        case 1: ready = ag.remaining != nil
+        case 3: ready = !claude.stale
+        default: ready = deepSeek.status == "ready"
+        }
         return HStack(spacing: 8) {
             TimelineView(.periodic(from: .now, by: 15)) { context in
-                let date = selectedService == 0 ? store.updatedAt : selectedService == 1 ? ag.updated : deepSeek.updatedAt
+                let date = selectedService == 0 ? store.updatedAt : selectedService == 1 ? ag.updated : selectedService == 3 ? claude.updatedAt : deepSeek.updatedAt
                 HStack(spacing: 6) {
                     Circle().fill(ready && !selectedServiceLoading ? ThemePalette.appleGreen : Color.secondary)
                         .frame(width: 5.5, height: 5.5)
@@ -1691,11 +1812,13 @@ struct QuotaPanel: View {
                 HStack(spacing: 14) {
                     Label("Codex", systemImage: "circle.fill")
                         .foregroundStyle(isCyber ? ThemePalette.codexMint : Color.secondary)
+                    Label("Claude Code", systemImage: "circle.fill")
+                        .foregroundStyle(isCyber ? ThemePalette.claudeClay : Color.secondary)
                     Label("Antigravity", systemImage: "circle.fill")
                         .foregroundStyle(isCyber ? ThemePalette.agViolet : Color.secondary)
                 }
                 .font(.caption)
-                .accessibilityLabel(isCyber ? "极客双色：Codex 青绿，Antigravity 紫色" : "原生克制：中性界面，额度使用语义色")
+                .accessibilityLabel(isCyber ? "极客双色：Codex 青绿，Claude Code 陶土橙，Antigravity 紫色" : "原生克制：中性界面，额度使用语义色")
             }
             Section {
                 Picker("显示范围", selection: Binding(get: { store.displayMode }, set: { store.setDisplayMode($0) })) {
@@ -1711,6 +1834,11 @@ struct QuotaPanel: View {
                 DisclosureGroup("满额自动触发") { QuotaKeeperRow() }
                 Button("管理登录…", action: openCodex)
             }
+            Section("Claude Code") {
+                Button("连接或重新登录…") { claude.connect() }
+                Text("在官方 Claude Code 中使用 Pro / Max 订阅登录后刷新额度。查询不发送对话。")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Section("Antigravity") {
                 Button("连接或重新登录…") {
                     do { try AGCLI.connect() } catch { store.settingsError = error.localizedDescription }
@@ -1722,6 +1850,10 @@ struct QuotaPanel: View {
                 DisclosureGroup("高级") {
                     Button("选择 Codex 程序…") { store.selectExecutable() }
                     Text(UserDefaults.standard.string(forKey: "codexPath") ?? "自动检测本机程序")
+                        .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("选择 Claude Code 程序…") { store.settingsError = claude.selectExecutable() }
+                    Text(claude.customPath ?? "自动检测本机程序")
                         .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
                 }

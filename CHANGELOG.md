@@ -1,5 +1,22 @@
 # 更新记录
 
+## 2.3.0 · 2026-11-22
+
+### 新增
+- Claude Code 服务页：五小时、每周可用额度与重置时间，套餐类型，模型每周额度（如 Opus，服务端返回时显示）。
+- 通过本机 Claude Code 的 `get_usage` 控制请求读取，不发送对话、不调用模型，应用不读取凭证。
+- 未登录 / API Key 会话显示「连接 Claude Code（官方登录）」，在终端运行 `claude auth login`。
+- 菜单栏显示范围「仅 Claude Code」；设置中新增 Claude Code 连接与「选择 Claude Code 程序」。
+- `--probe-claude` 命令行检查（只输出额度窗口）；16 项 Claude Code 测试。
+
+### 调整
+- 顶部服务切换为 Codex / Claude / Antigravity / DeepSeek。
+- Bento、Ultra、流体胶囊布局在选中 Claude 时复用 Codex 页组件；HUD 同屏增加 Claude Code 卡片。
+- 极客双色为 Claude Code 使用陶土橙，低额度仍为琥珀色。
+
+### 边界
+- 成功读取路径通过 mock 和界面样例渲染验证；本机 Claude Code CLI 未单独登录，真实检查返回「需要连接」。
+
 ## 2.2.0 · 2026-11-18
 
 ### 新增
